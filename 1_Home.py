@@ -26,7 +26,7 @@ st.markdown("""
 st.title("Testing Tools")
 st.sidebar.success('Select page above')
 st.sidebar.markdown("---")
-st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
+# st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
 # styled links
 st.markdown('<a href="pages/2_Significance Test.py" class="link"> Significance Test </a>', unsafe_allow_html=True)
