@@ -103,6 +103,7 @@ lift_value = st.sidebar.selectbox(
     index=10  # Default value of 11%
 )
 
+st.sidebar.markdown("---")
 st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
 if st.button("Calculate"):
