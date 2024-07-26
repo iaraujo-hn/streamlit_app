@@ -129,6 +129,7 @@ if st.button("Calculate"):
         </ul>
     """, unsafe_allow_html=True)
 
+# add parameters breakdown
 st.markdown("---")
 st.write('### Parameters Breakdown:')
 st.markdown(f"""
