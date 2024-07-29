@@ -100,5 +100,3 @@ if st.sidebar.button("Calculate"):
 
 st.sidebar.markdown("---")
 st.sidebar.image("./images/hn-logo.png", output_format="PNG", use_column_width="always")
-
-#test
