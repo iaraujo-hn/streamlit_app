@@ -24,7 +24,7 @@ st.markdown("""
 
 
 st.title("Testing Tools")
-st.sidebar.success('Select page above')
+# st.sidebar.success('Select page above')
 st.sidebar.markdown("---")
 st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
