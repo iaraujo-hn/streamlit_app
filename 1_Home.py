@@ -2,7 +2,8 @@ import streamlit as st
 
 
 # Page config
-st.set_page_config(page_title="Testing Tool")
+st.set_page_config(page_title="Testing Tool", layout="wide")
+
 
 st.markdown("""
     <style>
@@ -23,18 +24,23 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
-st.title("Testing Tools")
-# st.sidebar.success('Select page above')
-st.sidebar.markdown("---")
+# Add a small vertical space to ensure content below the image starts properly
 st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
-# styled links
-st.markdown('<a href="pages/2_Significance Test.py" class="link"> Significance Test </a>', unsafe_allow_html=True)
-st.write('This tool helps you determine if the differences in conversion rates between your control group and test group are statistically significant. Enter your data on the left side to perform the test.')
-st.image("images/significance_test.PNG", caption=" Significance Test ", use_column_width=True)
+st.title("Welcome to Your Testing Tools Platform!")
+st.markdown("##### Unlock the power of data-driven decisions with our collection of testing tools, designed to help you achieve accurate and meaningful insights.")
 
-st.markdown('<a href="pages/3_Sample Size Estimator.py" class="link"> Sample Size Estimator </a>', unsafe_allow_html=True)
-st.write('This tool calculates the required sample size for control and test groups in an A/B test, along with the associated budget and estimated duration. Enter the parameters in the sidebar to see the results.')
-st.image("images/sample_size_estimator.PNG", caption="Sample Size Estimator", use_column_width=True)
+st.markdown("--------------------")
+st.markdown("### Our Tools: ")
+st.markdown("##### 1. Significance Testing: ")
+# st.markdown('<a href="pages/4_Significance Test.py" class="link"> Significance Test </a>', unsafe_allow_html=True)
+st.write('Perform a two-sample t-test to determine if your results are statistically significant. This tool helps assess whether the differences observed are meaningful.')
 
-# # streamlit run 1_Home.py --server.enableXsrfProtection false
+st.markdown("##### 2. Sample Size Estimator: ")
+# st.markdown('<a href="pages/3_Sample Size Estimator.py" class="link"> Sample Size Estimator </a>', unsafe_allow_html=True)
+st.write('Maximize your chances of achieving statistical significance in your campaigns. This tool calculates the necessary sample size for control and test groups in an A/B test, aiding in budget planning and campaign duration.')
+
+st.markdown("##### 3. Campaign Duration Simulator: ")
+st.write('Estimate the optimal campaign duration when factors like lift and control group size are uncertain. This simulation tool helps you plan effectively by considering various scenarios.')
+
+# streamlit run 1_Home.py --server.enableXsrfProtection false 
