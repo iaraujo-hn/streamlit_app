@@ -7,11 +7,11 @@ from scipy.stats import t, norm
 def sample_size_estimator(
     control_group_size, control_group_conversions, 
     test_group_size, test_group_conversions, 
-    confidence_level, power, estimated_cpm, estimated_traffic):
+    confidence_level, estimated_cpm, estimated_traffic):
     
     confidence_level = float(confidence_level.strip('%')) / 100
-
-    # Calculate conversion rates, aka p1&p2. Projected true probabilities of success in the two groups
+    power = 0.8
+    # Calculate conversion rates
     control_group_cvr = control_group_conversions / control_group_size
     test_group_cvr = test_group_conversions / test_group_size
     lift = abs(control_group_cvr - test_group_cvr)
@@ -45,7 +45,7 @@ def sample_size_estimator(
     # Calculate budget
     control_budget, test_budget, total_budget = calculate_budget(control_group_size, test_group_size, estimated_cpm)
     
-    # Function to calculate duration, estimated run time(days)
+    # Function to calculate duration
     def calculate_duration(estimated_traffic, total_sample_size):
         if estimated_traffic:
             return round(total_sample_size / estimated_traffic)
@@ -67,6 +67,11 @@ def sample_size_estimator(
     }
     return results_dict
 
+# Function to apply styling
+def highlight_specific_rows(row):
+    highlighted_rows = ['Estimated Duration (days)', 'Total Sample Size', 'Total Budget']
+    return ['background-color: #ccffe6' if row.name in highlighted_rows else '' for _ in row]
+
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -76,7 +81,10 @@ def sample_size_estimator(
 st.set_page_config(page_title="Sample Size Estimator", layout="wide")
 
 st.title('Sample Size Estimator')
-st.write('This tool calculates the required sample size for control and test groups in an A/B test, along with the associated budget and estimated duration. Enter the parameters in the sidebar to see the results.')
+
+st.markdown("---")
+
+st.write("This tool is designed to help you plan A/B tests by calculating the necessary sample sizes for both your control and test groups. It also estimates the budget required and the time it will take to run the test. Simply input your parameters and the tool will provide you with detailed results.\n\nThese results will include the sizes of your groups, the total budget, and the expected duration of your test. This way, you can ensure your tests are properly planned and budgeted.")
 
 st.sidebar.title('A/B Test Parameters')
 # Control group input
@@ -89,29 +97,34 @@ st.sidebar.write('### Test Group')
 test_group_size = st.sidebar.number_input("Test Group Size", value=839045)
 test_group_conversions = st.sidebar.number_input("Test Group Conversions", value=325)
 
+
 # Parameters input
 st.sidebar.write('### Parameters')
-confidence_level = st.selectbox("##### Select Statistical Confidence", ['90%', '95%', '99%'], index=1)
-power = st.sidebar.number_input("Power", value=0.8)
+confidence_level = st.sidebar.selectbox("##### Select Statistical Confidence", ['90%', '95%', '99%'], index=1)
 estimated_cpm = st.sidebar.number_input("Estimated CPM", value=7.2)
 estimated_traffic = st.sidebar.number_input("Estimated Traffic", value=1342086)
-st.sidebar.markdown("---")
-st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
-
-if st.button("Calculate"):
-    results = sample_size_estimator(
+if st.sidebar.button("Calculate"):
+    results_dict = sample_size_estimator(
         control_group_size, control_group_conversions, 
         test_group_size, test_group_conversions, 
-        confidence_level, power, estimated_cpm, estimated_traffic
+        confidence_level, estimated_cpm, estimated_traffic
     )
     
     # Convert results to DataFrame and transpose it
-    results_df = pd.DataFrame([results]).T
+    results_df = pd.DataFrame([results_dict]).T
     results_df.columns = ['Value']
 
+    # Apply highlighting to the Estimated Duration row
+    # Use this function in your styling code
+    styled_results_df = results_df.style.apply(highlight_specific_rows, axis=1)
+
     # Show results
-    st.write("#### Results")
-    st.dataframe(results_df)
+    st.write("#### Results:")
+    st.dataframe(styled_results_df)
+
+st.sidebar.markdown("---")
+st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
 # streamlit run 1_Home.py --server.enableXsrfProtection false
+#test
