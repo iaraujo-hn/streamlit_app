@@ -113,14 +113,20 @@ if st.sidebar.button("Calculate"):
     
     # Convert results to DataFrame and transpose it
     results_df = pd.DataFrame([results_dict]).T
-    results_df.columns = ['Value']
+    results_df.columns = ['Result']
 
     # Apply highlighting to the Estimated Duration row
     # Use this function in your styling code
     styled_results_df = results_df.style.apply(highlight_specific_rows, axis=1)
 
+    # Retrieve the Total Budget
+    total_budget = results_df.loc['Total Budget', 'Result']
+    total_sample_size = results_df.loc['Total Sample Size', 'Result']
+    duration = results_df.loc['Estimated Duration (days)', 'Result']
+
     # Show results
     st.write("#### Results:")
+    st.write(f"###### To achieve a {confidence_level} confidence level, you will need an estimated budget of {total_budget}. We recommend a total sample size of {total_sample_size}. The test is expected to take approximately {duration} days.")
     st.dataframe(styled_results_df)
 
 st.sidebar.markdown("---")

@@ -98,9 +98,12 @@ st.markdown(f"""
             <b>Estimated Traffic:</b> Estimated daily impressions.\n
             <b>Threshold Days:</b> Maximum expected campaign length.\n
             <b>Statistical Confidence:</b> Choose the confidence interval for the results.\n
-            <b>Assumed Lift %:</b> Use the lift from previous tests or the expected lift.
+            <b>Assumed Lift %:</b> Use the lift from previous tests or the expected lift.\n
+            <b>Absolute Lift %:</b> Absolute difference between Control and Test groups conversion rate.
 """, unsafe_allow_html=True)
 st.sidebar.title('Parameters')
+st.sidebar.markdown("---")
+st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
 # Test group input
 test_cvr = st.sidebar.number_input("#### Test Group CVR", value=0.004010, format="%.6f")
@@ -135,16 +138,21 @@ if st.sidebar.button("Calculate"):
     )
     # Show results
     st.write(f"### Results for {confidence_level} Confidence Interval")
+    st.markdown(    """
+    <p style="font-size: 13px; text-align: right;">*Split: The percentage distribution between Control and Test Groups. For example, a 30/70 split indicates 30% in the Control Group and 70% in the Test Group.</p>
+    """,
+    unsafe_allow_html=True)
     st.dataframe(styled_results, use_container_width=True, hide_index=True)
 
     # Add legend for colors
     st.markdown("""
         <ul style="list-style-type: none;">
-            <li style="font-size: 14px;"><span style="background-color: #e6e6ff; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></span>Durations below the threshold days.</li>
+            <li style="font-size: 14px; "><span style="background-color: #e6e6ff; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></span>Durations below the threshold days.</li>
             <li style="font-size: 14px;"><span style="background-color: #ccffe6; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></span>Assumed lift value.</li>
         </ul>
     """, unsafe_allow_html=True)
 
+                
 
-st.sidebar.markdown("---")
-st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
+
+
