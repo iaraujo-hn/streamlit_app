@@ -102,7 +102,9 @@ st.markdown(f"""
             <b>Absolute Lift %:</b> Absolute difference between Control and Test groups conversion rate.
 """, unsafe_allow_html=True)
 st.sidebar.title('Parameters')
+
 st.sidebar.markdown("---")
+
 st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
 # Test group input
