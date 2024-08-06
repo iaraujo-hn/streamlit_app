@@ -103,10 +103,6 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 st.sidebar.title('Parameters')
 
-st.sidebar.markdown("---")
-
-st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
-
 # Test group input
 test_cvr = st.sidebar.number_input("#### Test Group CVR", value=0.004010, format="%.6f")
 
@@ -153,6 +149,10 @@ if st.sidebar.button("Calculate"):
             <li style="font-size: 14px;"><span style="background-color: #ccffe6; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></span>Assumed lift value.</li>
         </ul>
     """, unsafe_allow_html=True)
+
+st.sidebar.markdown("---")
+
+st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
 
                 
 
