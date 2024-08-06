@@ -71,7 +71,7 @@ st.title('Statistical Significance Test')
 
 st.markdown("---")
 
-st.write('This tool helps you determine if the difference in conversion rates between your control and test groups is statistically significant. Enter the sizes and conversions for both groups, along with your desired confidence level.\n\nThe tool will then tell you if the difference is significant and provide detailed results, helping you make informed decisions about your test outcomes.')
+st.write('This tool helps you determine if the difference in conversion rates between your control and test groups is statistically significant using a two-tailed test. Enter the sizes and conversions for both groups, along with your desired confidence level.\n\nThe tool will then tell you if the difference is significant and provide detailed results, helping you make informed decisions about your test outcomes.')
 
 st.sidebar.title('A/B Test Parameters')
 
