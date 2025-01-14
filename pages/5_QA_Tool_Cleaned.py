@@ -198,12 +198,29 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
 
+    # Ensure groupby_columns include datetime columns
+    for col in groupby_columns:
+        if df1[col].dtype == 'datetime64[ns]':
+            df1[col] = df1[col].dt.strftime('%Y-%m-%d')
+        if df2[col].dtype == 'datetime64[ns]':
+            df2[col] = df2[col].dt.strftime('%Y-%m-%d')
+
     # Exclude datetime columns before grouping
     non_datetime_columns_1 = df1.select_dtypes(exclude=["datetime64"]).columns
     non_datetime_columns_2 = df2.select_dtypes(exclude=["datetime64"]).columns
 
-    df1_grouped = df1[non_datetime_columns_1].groupby(groupby_columns).sum().reset_index()
-    df2_grouped = df2[non_datetime_columns_2].groupby(groupby_columns).sum().reset_index()
+    # Debugging: Print groupby_columns and df1 columns
+    print("Groupby Columns:", groupby_columns)
+    print("DataFrame Columns (df1):", df1.columns.tolist())
+    print("DataFrame Columns (df2):", df2.columns.tolist())
+
+    # Perform the groupby operation
+    try:
+        df1_grouped = df1.groupby(groupby_columns)[non_datetime_columns_1].sum().reset_index()
+        df2_grouped = df2.groupby(groupby_columns)[non_datetime_columns_2].sum().reset_index()
+    except KeyError as e:
+        print(f"KeyError during groupby operation: {e}")
+        raise
 
     # Merge the grouped dataframes
     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
@@ -222,38 +239,98 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
             merged_df[col_A] = check_and_convert_to_numeric(merged_df, col_A)
             merged_df[col_B] = check_and_convert_to_numeric(merged_df, col_B)
 
-            results[col_A] = merged_df[col_A]
-            results[col_B] = merged_df[col_B]
-
-            # Calculate the difference and percentage difference
+            # Calculate differences
             merged_df[diff_col] = merged_df[col_A] - merged_df[col_B]
             merged_df[pct_diff_col] = (merged_df[diff_col] / merged_df[col_B]) * 100
 
-            # Format the percentage difference
-            results[diff_col] = merged_df[diff_col]
-            results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
+            # Identify significant discrepancies
+            significant_discrepancies = merged_df[abs(merged_df[pct_diff_col]) > 10]
 
-            # Identify rows with discrepancies greater than 0.5%
-            discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
-            significant_discrepancies = pd.concat([significant_discrepancies, results[discrepancy_mask]])
-
-            if discrepancy_mask.any():
+            if not significant_discrepancies.empty:
                 discrepancies_found = True
 
-    st.write("#### Side by Side Comparison")
-    st.write(results)
+    return results, discrepancies_found, significant_discrepancies
 
-    if discrepancies_found:
-        # Calculate discrepancy percentage based on grouped rows
-        grouped_total_rows = len(merged_df)
-        num_discrepancies = len(significant_discrepancies.drop_duplicates(subset=groupby_columns))
-        discrepancy_percentage = (num_discrepancies / grouped_total_rows) * 100
+# filepath: /C:/Users/iaraujo/OneDrive - HorizonMedia/Documents/Clients/Repositories/testing-tool/streamlit_app/pages/5_QA_Tool_Cleaned.py
+results, discrepancies_found, significant_discrepancies = group_and_compare(df1, df2, groupby_columns, selected_metrics)
 
-        st.error(f"Found {num_discrepancies} rows with discrepancies, representing {discrepancy_percentage:.2f}% of the total grouped data.")
-        st.write("#### Significant Discrepancies (Difference > 0.5%)")
-        st.write(significant_discrepancies)
-    else:
-        st.success("No discrepancies greater than 0.5% found.")
+st.write("#### Side by Side Comparison")
+st.write(results)
+
+if discrepancies_found:
+    # Calculate discrepancy percentage based on grouped rows
+    grouped_total_rows = len(merged_df)
+    num_discrepancies = len(significant_discrepancies.drop_duplicates(subset=groupby_columns))
+    discrepancy_percentage = (num_discrepancies / grouped_total_rows) * 100
+
+    st.error(f"Found {num_discrepancies} rows with discrepancies, representing {discrepancy_percentage:.2f}% of the total grouped data.")
+    st.write("#### Significant Discrepancies (Difference > 0.5%)")
+    st.write(significant_discrepancies)
+else:
+    st.success("No discrepancies greater than 0.5% found.")
+
+# def group_and_compare(df1, df2, groupby_columns, selected_metrics):
+#     """Group dataframe and compare metrics."""
+#     # Rename columns to distinguish between files
+#     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
+#     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
+
+#     # Exclude datetime columns before grouping
+#     non_datetime_columns_1 = df1.select_dtypes(exclude=["datetime64"]).columns
+#     non_datetime_columns_2 = df2.select_dtypes(exclude=["datetime64"]).columns
+
+#     df1_grouped = df1[non_datetime_columns_1].groupby(groupby_columns).sum().reset_index()
+#     df2_grouped = df2[non_datetime_columns_2].groupby(groupby_columns).sum().reset_index()
+
+#     # Merge the grouped dataframes
+#     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
+
+#     results = merged_df[groupby_columns].copy()
+#     discrepancies_found = False
+#     significant_discrepancies = pd.DataFrame()
+
+#     for col in selected_metrics:
+#         col_A = f"{col} - File 1"
+#         col_B = f"{col} - File 2"
+#         diff_col = f"{col} Difference"
+#         pct_diff_col = f"{col} % Difference"
+
+#         if col_A in merged_df.columns and col_B in merged_df.columns:
+#             merged_df[col_A] = check_and_convert_to_numeric(merged_df, col_A)
+#             merged_df[col_B] = check_and_convert_to_numeric(merged_df, col_B)
+
+#             results[col_A] = merged_df[col_A]
+#             results[col_B] = merged_df[col_B]
+
+#             # Calculate the difference and percentage difference
+#             merged_df[diff_col] = merged_df[col_A] - merged_df[col_B]
+#             merged_df[pct_diff_col] = (merged_df[diff_col] / merged_df[col_B]) * 100
+
+#             # Format the percentage difference
+#             results[diff_col] = merged_df[diff_col]
+#             results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
+
+#             # Identify rows with discrepancies greater than 0.5%
+#             discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
+#             significant_discrepancies = pd.concat([significant_discrepancies, results[discrepancy_mask]])
+
+#             if discrepancy_mask.any():
+#                 discrepancies_found = True
+
+#     st.write("#### Side by Side Comparison")
+#     st.write(results)
+
+#     if discrepancies_found:
+#         # Calculate discrepancy percentage based on grouped rows
+#         grouped_total_rows = len(merged_df)
+#         num_discrepancies = len(significant_discrepancies.drop_duplicates(subset=groupby_columns))
+#         discrepancy_percentage = (num_discrepancies / grouped_total_rows) * 100
+
+#         st.error(f"Found {num_discrepancies} rows with discrepancies, representing {discrepancy_percentage:.2f}% of the total grouped data.")
+#         st.write("#### Significant Discrepancies (Difference > 0.5%)")
+#         st.write(significant_discrepancies)
+#     else:
+#         st.success("No discrepancies greater than 0.5% found.")
 
 # ---------------------------------- Main App ---------------------------------- #
 
