@@ -194,6 +194,19 @@ def manual_edit_columns(df1, df2):
 
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
+    # Identify datetime columns in the DataFrame
+    datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+    datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+
+    # Ensure datetime columns are included in the groupby_columns list
+    for col in datetime_columns_1:
+        if col not in groupby_columns:
+            groupby_columns.append(col)
+
+    for col in datetime_columns_2:
+        if col not in groupby_columns:
+            groupby_columns.append(col)
+
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
@@ -231,14 +244,14 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
 
             # Format the percentage difference
             results[diff_col] = merged_df[diff_col]
-            results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
+            results[pct_diff_col] = merged_df[pct_diff_col]
 
-            # Identify rows with discrepancies greater than 0.5%
-            discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
-            significant_discrepancies = pd.concat([significant_discrepancies, results[discrepancy_mask]])
-
-            if discrepancy_mask.any():
+            # Check for significant discrepancies
+            significant_discrepancies = merged_df[abs(merged_df[pct_diff_col]) > 5]
+            if not significant_discrepancies.empty:
                 discrepancies_found = True
+
+    return results, discrepancies_found, significant_discrepancies
 
     st.write("#### Side by Side Comparison")
     st.write(results)
