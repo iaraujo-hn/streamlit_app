@@ -11,7 +11,11 @@ import re  # regex
 import Levenshtein
 
 # Load spacy model for NLP matching
-nlp = spacy.load('en_core_web_sm')
+# nlp = spacy.load('en_core_web_sm')
+try:
+    nlp = spacy.load('en_core_web_sm')
+except OSError:
+    st.error("Spacy model 'en_core_web_sm' not found. Please download it using 'python -m spacy download en_core_web_sm'.")
 
 # Columns to exclude from the group by selection. This will help to maintain the group by selection cleaner for the final user
 excluded_groupby_columns = [
