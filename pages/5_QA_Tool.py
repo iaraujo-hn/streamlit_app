@@ -198,14 +198,9 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
     datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
 
-    # Ensure datetime columns are included in the groupby_columns list
-    for col in datetime_columns_1:
-        if col not in groupby_columns:
-            groupby_columns.append(col)
-
-    for col in datetime_columns_2:
-        if col not in groupby_columns:
-            groupby_columns.append(col)
+    # Allow users to select dimensions (including datetime columns) for grouping
+    groupby_options = sorted([col for col in df1.columns if col not in excluded_groupby_columns])
+    groupby_columns = st.multiselect("Select columns to group by:", groupby_options)
 
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
