@@ -192,93 +192,20 @@ def manual_edit_columns(df1, df2):
 
     return df1, df2
 
-# def group_and_compare(df1, df2, groupby_columns, selected_metrics):
-#     """Group dataframe and compare metrics."""
-#     # Identify datetime columns in the DataFrame
-#     datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-#     datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-
-#     # Ensure datetime columns are included in the groupby_columns list
-#     for col in datetime_columns_1:
-#         if col not in groupby_columns:
-#             groupby_columns.append(col)
-
-#     for col in datetime_columns_2:
-#         if col not in groupby_columns:
-#             groupby_columns.append(col)
-
-#     # Rename columns to distinguish between files
-#     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
-#     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
-
-#     # Ensure selected metrics are present in the DataFrame
-#     missing_metrics_1 = [col for col in selected_metrics if f"{col} - File 1" not in df1.columns]
-#     missing_metrics_2 = [col for col in selected_metrics if f"{col} - File 2" not in df2.columns]
-
-#     if missing_metrics_1:
-#         st.error(f"Selected metrics not found in File 1: {missing_metrics_1}")
-#         return
-#     if missing_metrics_2:
-#         st.error(f"Selected metrics not found in File 2: {missing_metrics_2}")
-#         return
-
-#     # Group by the specified columns and sum the selected metrics
-#     df1_grouped = df1.groupby(groupby_columns)[[f"{col} - File 1" for col in selected_metrics]].sum().reset_index()
-#     df2_grouped = df2.groupby(groupby_columns)[[f"{col} - File 2" for col in selected_metrics]].sum().reset_index()
-
-#     # Merge the grouped dataframes
-#     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
-
-#     results = merged_df[groupby_columns].copy()
-#     discrepancies_found = False
-#     discrepancy_mask = pd.Series([False] * len(merged_df))
-
-#     for col in selected_metrics:
-#         col_A = f"{col} - File 1"
-#         col_B = f"{col} - File 2"
-#         diff_col = f"{col} Difference"
-#         pct_diff_col = f"{col} % Difference"
-
-#         if col_A in merged_df.columns and col_B in merged_df.columns:
-#             merged_df[col_A] = check_and_convert_to_numeric(merged_df, col_A)
-#             merged_df[col_B] = check_and_convert_to_numeric(merged_df, col_B)
-
-#             results[col_A] = merged_df[col_A]
-#             results[col_B] = merged_df[col_B]
-
-#             # Calculate the difference and percentage difference
-#             merged_df[diff_col] = merged_df[col_A] - merged_df[col_B]
-#             merged_df[pct_diff_col] = (merged_df[diff_col] / merged_df[col_B]) * 100
-
-#             # Format the percentage difference
-#             results[diff_col] = merged_df[diff_col]
-#             results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
-
-#             # Update the discrepancy mask
-#             discrepancy_mask |= merged_df[pct_diff_col].abs() > 0.5
-
-#     st.write("#### Side by Side Comparison")
-#     st.write(results)
-
-#     if discrepancy_mask.any():
-#         significant_discrepancies = results[discrepancy_mask]
-
-#         # Calculate discrepancy percentage based on grouped rows
-#         grouped_total_rows = len(merged_df)
-#         num_discrepancies = len(significant_discrepancies.drop_duplicates(subset=groupby_columns))
-#         discrepancy_percentage = (num_discrepancies / grouped_total_rows) * 100
-
-#         st.error(f"Found {num_discrepancies} rows with discrepancies, representing {discrepancy_percentage:.2f}% of the total grouped data.")
-#         st.write("#### Significant Discrepancies (Difference > 0.5%)")
-#         st.write(significant_discrepancies)
-#     else:
-#         st.success("No discrepancies greater than 0.5% found.")
-
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
-    # Allow users to select dimensions (including datetime columns) for grouping
-    groupby_options = sorted([col for col in df1.columns if col not in excluded_groupby_columns])
-    groupby_columns = st.multiselect("Select columns to group by:", groupby_options)
+    # Identify datetime columns in the DataFrame
+    datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+    datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+
+    # Ensure datetime columns are included in the groupby_columns list
+    for col in datetime_columns_1:
+        if col not in groupby_columns:
+            groupby_columns.append(col)
+
+    for col in datetime_columns_2:
+        if col not in groupby_columns:
+            groupby_columns.append(col)
 
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
@@ -303,6 +230,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
 
     results = merged_df[groupby_columns].copy()
+    discrepancies_found = False
     discrepancy_mask = pd.Series([False] * len(merged_df))
 
     for col in selected_metrics:
@@ -312,8 +240,8 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
         pct_diff_col = f"{col} % Difference"
 
         if col_A in merged_df.columns and col_B in merged_df.columns:
-            merged_df[col_A] = pd.to_numeric(merged_df[col_A], errors='coerce')
-            merged_df[col_B] = pd.to_numeric(merged_df[col_B], errors='coerce')
+            merged_df[col_A] = check_and_convert_to_numeric(merged_df, col_A)
+            merged_df[col_B] = check_and_convert_to_numeric(merged_df, col_B)
 
             results[col_A] = merged_df[col_A]
             results[col_B] = merged_df[col_B]
