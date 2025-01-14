@@ -292,7 +292,7 @@ if file_1 and file_2:
         common_columns = list(set(df1.columns) & set(df2.columns))
         if common_columns:
             st.write("### Select dimensions and metrics:")
-            groupby_options = sorted([col for col in common_columns if col not in EXCLUDED_GROUPBY_COLUMNS])
+            groupby_options = sorted([col for col in common_columns if col not in excluded_groupby_columns])
             groupby_columns = st.multiselect("Select columns to group by:", groupby_options)
             numeric_columns = [col for col in common_columns if pd.api.types.is_numeric_dtype(df1[col])]
             selected_metrics = st.multiselect("Select metrics to compare:", numeric_columns)
