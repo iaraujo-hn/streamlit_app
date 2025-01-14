@@ -194,6 +194,19 @@ def manual_edit_columns(df1, df2):
 
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
+    # Identify datetime columns in the DataFrame
+    datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+    datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+
+    # Ensure datetime columns are included in the groupby_columns list
+    for col in datetime_columns_1:
+        if col not in groupby_columns:
+            groupby_columns.append(col)
+
+    for col in datetime_columns_2:
+        if col not in groupby_columns:
+            groupby_columns.append(col)
+
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
@@ -218,7 +231,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
 
     results = merged_df[groupby_columns].copy()
     discrepancies_found = False
-    discrepancies_list = []
+    discrepancy_mask = pd.Series([False] * len(merged_df))
 
     for col in selected_metrics:
         col_A = f"{col} - File 1"
@@ -241,19 +254,14 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
             results[diff_col] = merged_df[diff_col]
             results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
 
-            # Identify rows with discrepancies greater than 0.5%
-            discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
-            discrepancies_list.append(merged_df[discrepancy_mask])
-
-            if discrepancy_mask.any():
-                discrepancies_found = True
+            # Update the discrepancy mask
+            discrepancy_mask |= merged_df[pct_diff_col].abs() > 0.5
 
     st.write("#### Side by Side Comparison")
     st.write(results)
 
-    if discrepancies_found:
-        # Concatenate all discrepancies
-        significant_discrepancies = pd.concat(discrepancies_list).drop_duplicates()
+    if discrepancy_mask.any():
+        significant_discrepancies = results[discrepancy_mask]
 
         # Calculate discrepancy percentage based on grouped rows
         grouped_total_rows = len(merged_df)
