@@ -196,7 +196,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
     # Identify datetime columns in the DataFrame
     datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-    datetime_columns_2 = df2.select_dtypes(include(['datetime', 'datetime64'])).columns.tolist()
+    datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
 
     # Ensure datetime columns are included in the groupby_columns list
     for col in datetime_columns_1:
@@ -256,7 +256,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
 
             # Identify rows with discrepancies greater than 0.5%
             discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
-            discrepancies_list.append(results[discrepancy_mask])
+            discrepancies_list.append(merged_df[discrepancy_mask])
 
             if discrepancy_mask.any():
                 discrepancies_found = True
@@ -282,22 +282,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
 def check_and_convert_to_numeric(df, col):
     """Convert column to numeric, coercing errors."""
     return pd.to_numeric(df[col], errors='coerce')
-
-    st.write("#### Side by Side Comparison")
-    st.write(results)
-
-    if discrepancies_found:
-        # Calculate discrepancy percentage based on grouped rows
-        grouped_total_rows = len(merged_df)
-        num_discrepancies = len(significant_discrepancies.drop_duplicates(subset=groupby_columns))
-        discrepancy_percentage = (num_discrepancies / grouped_total_rows) * 100
-
-        st.error(f"Found {num_discrepancies} rows with discrepancies, representing {discrepancy_percentage:.2f}% of the total grouped data.")
-        st.write("#### Significant Discrepancies (Difference > 0.5%)")
-        st.write(significant_discrepancies)
-    else:
-        st.success("No discrepancies greater than 0.5% found.")
-
+    
 # ---------------------------------- Main App ---------------------------------- #
 
 st.title("QA Tool")
