@@ -6,4 +6,3 @@ rapidfuzz
 spacy
 Levenshtein
 spacy
-en-core-web-sm
