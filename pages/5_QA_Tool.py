@@ -194,19 +194,6 @@ def manual_edit_columns(df1, df2):
 
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
-    # Identify datetime columns in the DataFrame
-    datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-    datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-
-    # Ensure datetime columns are included in the groupby_columns list
-    for col in datetime_columns_1:
-        if col not in groupby_columns:
-            groupby_columns.append(col)
-
-    for col in datetime_columns_2:
-        if col not in groupby_columns:
-            groupby_columns.append(col)
-
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
