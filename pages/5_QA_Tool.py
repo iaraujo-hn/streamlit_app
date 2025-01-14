@@ -194,38 +194,15 @@ def manual_edit_columns(df1, df2):
 
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
-    # Identify datetime columns in the DataFrame
-    datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-    datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-
-    # Ensure datetime columns are included in the groupby_columns list
-    for col in datetime_columns_1:
-        if col not in groupby_columns:
-            groupby_columns.append(col)
-
-    for col in datetime_columns_2:
-        if col not in groupby_columns:
-            groupby_columns.append(col)
-
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
 
-    # Ensure selected metrics are present in the DataFrame
-    missing_metrics_1 = [col for col in selected_metrics if f"{col} - File 1" not in df1.columns]
-    missing_metrics_2 = [col for col in selected_metrics if f"{col} - File 2" not in df2.columns]
-
-    if missing_metrics_1:
-        st.error(f"Selected metrics not found in File 1: {missing_metrics_1}")
-        return
-    if missing_metrics_2:
-        st.error(f"Selected metrics not found in File 2: {missing_metrics_2}")
-        return
-
-    # Group by the specified columns and sum the selected metrics
-    df1_grouped = df1.groupby(groupby_columns)[[f"{col} - File 1" for col in selected_metrics]].sum().reset_index()
-    df2_grouped = df2.groupby(groupby_columns)[[f"{col} - File 2" for col in selected_metrics]].sum().reset_index()
-
+    # Exclude datetime columns before grouping
+# Include all columns in the group-by selection, including datetime columns
+    df1_grouped = df1.groupby(groupby_columns).sum(numeric_only=True).reset_index()
+    df2_grouped = df2.groupby(groupby_columns).sum(numeric_only=True).reset_index()
+    
     # Merge the grouped dataframes
     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
 
@@ -275,10 +252,6 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
         st.write(significant_discrepancies)
     else:
         st.success("No discrepancies greater than 0.5% found.")
-
-def check_and_convert_to_numeric(df, col):
-    """Convert column to numeric, coercing errors."""
-    return pd.to_numeric(df[col], errors='coerce')
 
 # ---------------------------------- Main App ---------------------------------- #
 
