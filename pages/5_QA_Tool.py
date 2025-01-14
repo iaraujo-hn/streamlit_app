@@ -231,7 +231,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
 
     results = merged_df[groupby_columns].copy()
     discrepancies_found = False
-    discrepancies_list = []
+    discrepancy_mask = pd.Series([False] * len(merged_df))
 
     for col in selected_metrics:
         col_A = f"{col} - File 1"
@@ -254,19 +254,14 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
             results[diff_col] = merged_df[diff_col]
             results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
 
-            # Identify rows with discrepancies greater than 0.5%
-            discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
-            discrepancies_list.append(merged_df[discrepancy_mask])
-
-            if discrepancy_mask.any():
-                discrepancies_found = True
+            # Update the discrepancy mask
+            discrepancy_mask |= merged_df[pct_diff_col].abs() > 0.5
 
     st.write("#### Side by Side Comparison")
     st.write(results)
 
-    if discrepancies_found:
-        # Concatenate all discrepancies
-        significant_discrepancies = pd.concat(discrepancies_list).drop_duplicates()
+    if discrepancy_mask.any():
+        significant_discrepancies = results[discrepancy_mask]
 
         # Calculate discrepancy percentage based on grouped rows
         grouped_total_rows = len(merged_df)
@@ -282,7 +277,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
 def check_and_convert_to_numeric(df, col):
     """Convert column to numeric, coercing errors."""
     return pd.to_numeric(df[col], errors='coerce')
-    
+
 # ---------------------------------- Main App ---------------------------------- #
 
 st.title("QA Tool")
