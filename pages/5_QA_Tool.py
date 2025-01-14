@@ -191,18 +191,24 @@ def manual_edit_columns(df1, df2):
             df2.rename(columns={col: new_col}, inplace=True)
 
     return df1, df2
+
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
-    # Reset significant discrepancies
-    significant_discrepancies = pd.DataFrame()
-
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
 
-    # Merge grouped dataframes
-    merged_df = pd.merge(df1, df2, on=groupby_columns)
+    # Exclude datetime columns before grouping
+# Include all columns in the group-by selection, including datetime columns
+    df1_grouped = df1.groupby(groupby_columns).sum(numeric_only=True).reset_index()
+    df2_grouped = df2.groupby(groupby_columns).sum(numeric_only=True).reset_index()
+    
+    # Merge the grouped dataframes
+    merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
+
     results = merged_df[groupby_columns].copy()
+    discrepancies_found = False
+    significant_discrepancies = pd.DataFrame()
 
     for col in selected_metrics:
         col_A = f"{col} - File 1"
@@ -211,23 +217,26 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
         pct_diff_col = f"{col} % Difference"
 
         if col_A in merged_df.columns and col_B in merged_df.columns:
+            merged_df[col_A] = check_and_convert_to_numeric(merged_df, col_A)
+            merged_df[col_B] = check_and_convert_to_numeric(merged_df, col_B)
+
             results[col_A] = merged_df[col_A]
             results[col_B] = merged_df[col_B]
 
-            # Calculate differences
+            # Calculate the difference and percentage difference
             merged_df[diff_col] = merged_df[col_A] - merged_df[col_B]
             merged_df[pct_diff_col] = (merged_df[diff_col] / merged_df[col_B]) * 100
+
+            # Format the percentage difference
             results[diff_col] = merged_df[diff_col]
             results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
 
-            # Identify significant discrepancies
+            # Identify rows with discrepancies greater than 0.5%
             discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
-            significant_discrepancies = pd.concat([significant_discrepancies, results[discrepancy_mask]]).drop_duplicates()
+            significant_discrepancies = pd.concat([significant_discrepancies, results[discrepancy_mask]])
 
-    # Display discrepancies
-    if not significant_discrepancies.empty:
-        st.write("#### Significant Discrepancies")
-        st.write(significant_discrepancies)
+            if discrepancy_mask.any():
+                discrepancies_found = True
 
     st.write("#### Side by Side Comparison")
     st.write(results)
