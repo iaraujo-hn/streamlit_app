@@ -192,18 +192,11 @@ def manual_edit_columns(df1, df2):
 
     return df1, df2
 
-def group_and_compare(df1, df2, selected_metrics):
+def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
     # Identify datetime columns in the DataFrame
     datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
     datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
-
-    # Combine datetime columns from both dataframes
-    all_datetime_columns = list(set(datetime_columns_1 + datetime_columns_2))
-
-    # Let the user select groupby columns
-    all_columns = df1.columns.tolist() + df2.columns.tolist()
-    groupby_columns = st.multiselect("Select columns to group by", all_columns, default=all_datetime_columns)
 
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
@@ -226,8 +219,6 @@ def group_and_compare(df1, df2, selected_metrics):
 
     # Merge the grouped dataframes
     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
-
-    results = merged_df[groupby_columns].copy()
 
     results = merged_df[groupby_columns].copy()
     discrepancies_found = False
