@@ -4,3 +4,4 @@ numpy
 scipy
 rapidfuzz
 spacy
+Levenshtein
