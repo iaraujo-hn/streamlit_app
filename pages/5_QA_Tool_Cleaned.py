@@ -10,16 +10,11 @@ import spacy
 import re  # regex
 import Levenshtein
 
-# Check if the model exists, if not, download it
-model_name = "en_core_web_sm"
-try:
-    nlp = spacy.load(model_name)
-except OSError:
-    os.system(f"python -m spacy download {model_name}")
-    nlp = spacy.load(model_name)
-    
+# Load spacy model for NLP matching
+nlp = spacy.load('en_core_web_sm')
+
 # Columns to exclude from the group by selection. This will help to maintain the group by selection cleaner for the final user
-EXCLUDED_GROUPBY_COLUMNS = [
+excluded_groupby_columns = [
     'impressions', 'clicks', 'Click', 'spend', 'sessions', 'page_views', 'revenue', 'conversions'
 ]
 
