@@ -193,38 +193,24 @@ def manual_edit_columns(df1, df2):
     return df1, df2
 
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
-    # Debugging: Print groupby_columns and df1 columns
-    print("Groupby Columns:", groupby_columns)
-    print("DataFrame Columns:", df1.columns.tolist())
-
-    # Check if all groupby_columns exist in df1
-    missing_columns = [col for col in groupby_columns if col not in df1.columns]
-    if missing_columns:
-        raise KeyError(f"The following columns are missing in the DataFrame: {missing_columns}")
-
-    # Ensure columns are correctly referenced
-    non_datetime_columns_l = [col for col in df1.columns if col not in groupby_columns]
-    print("Non-datetime Columns:", non_datetime_columns_l)
-
-    # Perform the groupby operation
-    try:
-        df1_grouped = df1[non_datetime_columns_l].groupby(groupby_columns).sum().reset_index()
-    except KeyError as e:
-        print(f"KeyError during groupby operation: {e}")
-        raise
-
-
     """Group dataframe and compare metrics."""
     # Rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
 
+    # Ensure groupby_columns include datetime columns
+    for col in groupby_columns:
+        if df1[col].dtype == 'datetime64[ns]':
+            df1[col] = df1[col].dt.strftime('%Y-%m-%d')
+        if df2[col].dtype == 'datetime64[ns]':
+            df2[col] = df2[col].dt.strftime('%Y-%m-%d')
+
     # Exclude datetime columns before grouping
     non_datetime_columns_1 = df1.select_dtypes(exclude=["datetime64"]).columns
     non_datetime_columns_2 = df2.select_dtypes(exclude=["datetime64"]).columns
 
-    df1_grouped = df1[non_datetime_columns_1].groupby(groupby_columns).sum().reset_index()
-    df2_grouped = df2[non_datetime_columns_2].groupby(groupby_columns).sum().reset_index()
+    df1_grouped = df1.groupby(groupby_columns)[non_datetime_columns_1].sum().reset_index()
+    df2_grouped = df2.groupby(groupby_columns)[non_datetime_columns_2].sum().reset_index()
 
     # Merge the grouped dataframes
     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
@@ -243,23 +229,17 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
             merged_df[col_A] = check_and_convert_to_numeric(merged_df, col_A)
             merged_df[col_B] = check_and_convert_to_numeric(merged_df, col_B)
 
-            results[col_A] = merged_df[col_A]
-            results[col_B] = merged_df[col_B]
-
-            # Calculate the difference and percentage difference
+            # Calculate differences
             merged_df[diff_col] = merged_df[col_A] - merged_df[col_B]
             merged_df[pct_diff_col] = (merged_df[diff_col] / merged_df[col_B]) * 100
 
-            # Format the percentage difference
-            results[diff_col] = merged_df[diff_col]
-            results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
+            # Identify significant discrepancies
+            significant_discrepancies = merged_df[abs(merged_df[pct_diff_col]) > 10]
 
-            # Identify rows with discrepancies greater than 0.5%
-            discrepancy_mask = merged_df[pct_diff_col].abs() > 0.5
-            significant_discrepancies = pd.concat([significant_discrepancies, results[discrepancy_mask]])
-
-            if discrepancy_mask.any():
+            if not significant_discrepancies.empty:
                 discrepancies_found = True
+
+    return results, discrepancies_found, significant_discrepancies
 
     st.write("#### Side by Side Comparison")
     st.write(results)
