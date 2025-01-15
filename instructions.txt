@@ -1,0 +1,3 @@
+To run the app, paste the following in command prompt:
+
+streamlit run 1_Home.py --server.enableXsrfProtection false
