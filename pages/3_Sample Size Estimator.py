@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import t, norm
 
 # Function
 def sample_size_estimator(
@@ -128,3 +128,8 @@ if st.sidebar.button("Calculate"):
     st.write("#### Results:")
     st.write(f"###### To achieve a {confidence_level} confidence level, you will need an estimated budget of {total_budget}. We recommend a total sample size of {total_sample_size}. The test is expected to take approximately {duration} days.")
     st.dataframe(styled_results_df)
+
+st.sidebar.markdown("---")
+st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
+
+# streamlit run 1_Home.py --server.enableXsrfProtection false
