@@ -221,7 +221,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns)
 
     results = merged_df[groupby_columns].copy()
-    discrepancies_found = False
+    discrepancies_found = False # is this working?
     discrepancy_mask = pd.Series([False] * len(merged_df))
 
     for col in selected_metrics:
