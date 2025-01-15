@@ -146,9 +146,9 @@ def display_uploaded_data(file_1, file_2):
         df2 = convert_date_columns(df2)
 
         if st.button("View Data"):
-            st.write("### Data from File 1")
+            st.write("### File 1:")
             st.write(df1.head())
-            st.write("### Data from File 2")
+            st.write("### File 2:")
             st.write(df2.head())
         return df1, df2
     return None, None

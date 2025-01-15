@@ -24,7 +24,7 @@ st.markdown("""
 
 
 # Add a small vertical space to ensure content below the image starts properly
-st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
+st.sidebar.image("images/hn-logo.png", output_format="PNG")
 
 st.title("Welcome to Your Testing Tools Platform!")
 st.markdown("##### Unlock the power of data-driven decisions with our collection of testing tools, designed to help you achieve accurate and meaningful insights.")
