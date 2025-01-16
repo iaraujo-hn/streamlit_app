@@ -10,13 +10,6 @@ import spacy
 import re  # regex
 import Levenshtein
 
-# Load spacy model for NLP matching
-# nlp = spacy.load('en_core_web_sm')
-# try:
-#     nlp = spacy.load('en_core_web_sm')
-# except OSError:
-#     st.error("Spacy model 'en_core_web_sm' not found. .")
-
 # Columns to exclude from the group by selection. This will help to maintain the group by selection cleaner for the final user
 excluded_groupby_columns = [
     'impressions', 'clicks', 'Click', 'spend', 'sessions', 'page_views', 'revenue', 'conversions'
@@ -67,41 +60,6 @@ def find_best_match(input_cols, columns_list):
             best_matches[input_col] = input_col  # No suitable match found; keep the original name
 
     return best_matches
-
-# def find_best_match(input_col, columns_list):
-# Original matching process using NLP and rapidfuzz
-#     """Find the best match for column names using fuzzy matching and NLP"""
-#     input_col_lower = input_col.lower()
-#     columns_list_lower = [col.lower() for col in columns_list]
-
-#     # Fuzzy matching
-#     result = process.extract(input_col_lower, columns_list_lower, scorer=fuzz.ratio, limit=5)
-#     best_match = None
-#     best_score = 0
-
-#     for match, score, index in result:
-#         if score > best_score:
-#             best_match = columns_list[index]
-#             best_score = score
-
-#     if best_score >= 75:
-#         return best_match
-
-#     # NLP similarity
-#     input_doc = nlp(input_col_lower)
-#     best_similarity = 0
-
-#     for col in columns_list:
-#         col_doc = nlp(col.lower())
-#         similarity = input_doc.similarity(col_doc)
-#         if similarity > best_similarity:
-#             best_match = col
-#             best_similarity = similarity
-
-#     # It will only return the fuzzy matched words if they are synonyms
-#     return best_match if best_similarity > 0.8 else input_col 
-
-
 
 def convert_date_columns(df):
     """Convert date related columns to datetime format"""
@@ -154,26 +112,6 @@ def display_uploaded_data(file_1, file_2):
         return df1, df2
     return None, None
 
-# def auto_match_columns(df1, df2):
-#     """Automatically match and rename columns between two dataframes."""
-#     columns_1 = list(df1.columns)
-#     columns_2 = list(df2.columns)
-
-#     auto_match = st.toggle("Enable automatic column renaming.", value=True)
-#     column_replacements = {}
-
-#     if auto_match:
-#         st.success("The automatic column renaming feature is enabled. Click the toggle above to disable it.")
-#         matches = find_best_match(columns_2, columns_1)
-#         for col, matched_col in matches.items():
-#             if matched_col != col:
-#                 column_replacements[col] = matched_col
-#         df2.rename(columns=column_replacements, inplace=True)
-#     else:
-#         st.info("Automatic column renaming is disabled. Column names will remain as uploaded.")
-
-#     return df1, df2, column_replacements
-
 def auto_match_columns(df1, df2):
     """Automatically match and rename columns between two dataframes."""
     columns_1 = list(df1.columns)
@@ -191,124 +129,11 @@ def auto_match_columns(df1, df2):
         df2.rename(columns=column_replacements, inplace=True)
         
         if not column_replacements:
-            st.info("No column renaming were automatically done. The files may already have matching columns.")
+            st.info("No columns were automatically renamed. The files may already have matching columns.")
     else:
         st.info("Automatic column renaming is disabled. Column names will remain as uploaded.")
 
     return df1, df2, column_replacements 
-
-# def manual_edit_columns(df1, df2):
-#     """Allow manual editing of column names for both dataframe."""
-#     st.write("### Manual Column Editing")
-
-#     st.write("#### Edit Columns in File 1")
-#     cols1 = st.columns(3)
-#     for idx, col in enumerate(df1.columns):
-#         with cols1[idx % 3]: # should the number of columns side by side
-#             new_col = st.text_input(f"Rename '{col}'", col, key=f"file1_{col}")
-#             df1.rename(columns={col: new_col}, inplace=True)
-
-#     st.write("#### Edit Columns in File 2")
-#     cols2 = st.columns(3)
-#     for idx, col in enumerate(df2.columns):
-#         with cols2[idx % 3]:
-#             new_col = st.text_input(f"Rename '{col}'", col, key=f"file2_{col}")
-#             df2.rename(columns={col: new_col}, inplace=True)
-
-#     return df1, df2
-
-# def manual_edit_columns(df1, df2):
-#     """Allow manual editing of column names for both dataframe."""
-#     st.write("### Manual Column Editing")
-
-#     # Create a DataFrame to display column names side by side
-#     max_len = max(len(df1.columns), len(df2.columns))
-#     columns_df = pd.DataFrame({
-#         "File 1 Column Names": list(df1.columns) + [""] * (max_len - len(df1.columns)),
-#         "File 2 Column Names": list(df2.columns) + [""] * (max_len - len(df2.columns))
-#     })
-
-#     # Custom CSS to fix column names
-#     st.markdown(
-#         """
-#         <style>
-#         .dataframe th {
-#             text-align: left !important;
-#         }
-#         </style>
-#         """,
-#         unsafe_allow_html=True
-#     )
-
-#     # Display the DataFrame as a table without the index
-#     st.write("#### Column Names in File 1 and File 2")
-#     st.write(columns_df.to_html(index=False), unsafe_allow_html=True)
-
-#     st.write("#### Edit Columns in File 1")
-#     cols1 = st.columns(3)
-#     for idx, col in enumerate(df1.columns):
-#         with cols1[idx % 3]:  # should the number of columns side by side
-#             new_col = st.text_input(f"Rename '{col}'", col, key=f"file1_{col}")
-#             df1.rename(columns={col: new_col}, inplace=True)
-
-#     st.write("#### Edit Columns in File 2")
-#     cols2 = st.columns(3)
-#     for idx, col in enumerate(df2.columns):
-#         with cols2[idx % 3]:
-#             new_col = st.text_input(f"Rename '{col}'", col, key=f"file2_{col}")
-#             df2.rename(columns={col: new_col}, inplace=True)
-
-#     return df1, df2
-
-# def manual_edit_columns(df1, df2):
-#     """Allow manual editing of column names for both dataframes."""
-#     st.write("### Manual Column Editing")
-
-#     # Create a DataFrame to display column names side by side
-#     max_len = max(len(df1.columns), len(df2.columns))
-#     columns_df = pd.DataFrame({
-#         "File 1 Column Names": list(df1.columns) + [""] * (max_len - len(df1.columns)),
-#         "File 2 Column Names": list(df2.columns) + [""] * (max_len - len(df2.columns))
-#     })
-
-#     # Custom CSS to fix column names alignment
-#     st.markdown(
-#         """
-#         <style>
-#         .dataframe th {
-#             text-align: left !important;
-#         }
-#         </style>
-#         """,
-#         unsafe_allow_html=True
-#     )
-
-#     # Display the DataFrame as a table without the index
-#     st.write("#### Column Names in File 1 and File 2")
-#     st.write(columns_df.to_html(index=False), unsafe_allow_html=True)
-
-#     # Allow the user to select columns to rename
-#     st.write("#### Select Columns to Rename in File 1")
-#     columns_to_rename_file1 = st.multiselect("Select columns from File 1:", df1.columns)
-
-#     st.write("#### Select Columns to Rename in File 2")
-#     columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
-
-#     # Show text input for selected columns in File 1
-#     if columns_to_rename_file1:
-#         st.write("#### Rename Selected Columns in File 1")
-#         for col in columns_to_rename_file1:
-#             new_col = st.text_input(f"Rename '{col}'", col, key=f"file1_{col}")
-#             df1.rename(columns={col: new_col}, inplace=True)
-
-#     # Show text input for selected columns in File 2
-#     if columns_to_rename_file2:
-#         st.write("#### Rename Selected Columns in File 2")
-#         for col in columns_to_rename_file2:
-#             new_col = st.text_input(f"Rename '{col}'", col, key=f"file2_{col}")
-#             df2.rename(columns={col: new_col}, inplace=True)
-
-#     return df1, df2
 
 def manual_edit_columns(df1, df2):
     """Allow manual editing of column names for both dataframes."""
