@@ -1,14 +1,13 @@
-# ---------------------------------- Package Errors Fix - Run in your terminal ---------------------------------- #
-# pip show streamlit pandas numpy openpyxl spacy rapidfuzz Levenshtein
-# python -m spacy download en_core_web_sm
-
 # ---------------------------------- Import Libraries ---------------------------------- #
 import streamlit as st
 import pandas as pd
-from rapidfuzz import process, fuzz
-import spacy
+# from rapidfuzz import process, fuzz # might not be needed if we are moving forward with Levenshtein
+# import spacy # might not be needed if we are moving forward with Levenshtein
 import re  # regex
 import Levenshtein
+
+# Define the list of default columns to be included in the group by session
+default_groupby_columns = ['placement_id','campaign_id', "creative_id", 'site_id']
 
 # Columns to exclude from the group by selection. This will help to maintain the group by selection cleaner for the final user
 excluded_groupby_columns = [
@@ -25,12 +24,12 @@ def read_file(file):
     elif file.name.endswith('.xlsx'):
         return pd.read_excel(file)
     else:
-        st.error("Unsupported file type")
+        st.error("Unsupported file type. Please try uploading a CSV or Excel file.")
         return None
 
 # ---------------------------------- Data Processing ---------------------------------- #
 # Testing Levenshtein distance as the matching process. We still need to test it more to see if there are any flaws
-def find_best_match(input_cols, columns_list):
+def find_best_match(input_cols, columns_list): 
     """Find the best match for each input column using levenshtein distance and avoid duplications."""
     input_cols_lower = [col.lower() for col in input_cols]
     columns_list_lower = [col.lower() for col in columns_list]
@@ -42,29 +41,29 @@ def find_best_match(input_cols, columns_list):
         best_distance = float('inf')
 
         for i, col in enumerate(columns_list_lower):
-            if col in used_matches:
-                continue
+            if col in used_matches: # Avoid duplicating matches
+                continue 
 
-            distance = Levenshtein.distance(input_col_lower, col)
+            distance = Levenshtein.distance(input_col_lower, col) # Calculate the Levenshtein distance
             # Ensure the columns share common keywords
-            common_words = set(input_col_lower.split()) & set(col.split())
-            if distance < best_distance and (common_words or input_col_lower in col or col in input_col_lower):
-                best_match = columns_list[i]
-                best_distance = distance
+            common_words = set(input_col_lower.split()) & set(col.split()) 
+            if distance < best_distance and (common_words or input_col_lower in col or col in input_col_lower): 
+                best_match = columns_list[i] 
+                best_distance = distance 
 
         # Only use the best match if within a reasonable threshold and not already matched
-        if best_match and best_distance <= 3:
-            best_matches[input_col] = best_match
-            used_matches.add(best_match.lower())
+        if best_match and best_distance <= 3: 
+            best_matches[input_col] = best_match 
+            used_matches.add(best_match.lower()) 
         else:
             best_matches[input_col] = input_col  # No suitable match found; keep the original name
 
-    return best_matches
+    return best_matches 
 
 def convert_date_columns(df):
-    # Need to confirm if there are any issues that could happen with different date formats
     """Convert date related columns to datetime format"""
-    date_keywords = ['date', 'week', 'month', 'year']
+    # Need to confirm if there are any issues that could happen with different date formats
+    date_keywords = ['date', 'week', 'month', 'year'] # Keywords to identify date columns
 
     for col in df.columns:
         if any(keyword in col.lower() for keyword in date_keywords):
@@ -78,8 +77,7 @@ def convert_date_columns(df):
                     pass
     return df
 
-
-def check_and_convert_to_numeric(df, column_name):
+def check_and_convert_to_numeric(df, column_name): 
     """Convert a column to numeric and display warnings for problematic values"""
     try:
         df[column_name] = pd.to_numeric(df[column_name], errors='coerce')
@@ -92,7 +90,6 @@ def check_and_convert_to_numeric(df, column_name):
         st.error(f"Error converting column '{column_name}' to numeric: {e}")
         return df[column_name]
 
-
 # ---------------------------------- UI Components ---------------------------------- #
 
 def display_uploaded_data(file_1, file_2):
@@ -101,7 +98,7 @@ def display_uploaded_data(file_1, file_2):
     df2 = read_file(file_2)
 
     if df1 is not None and df2 is not None:
-        st.success("Files uploaded successfully")
+        # st.success("Files uploaded successfully")
         df1 = convert_date_columns(df1)
         df2 = convert_date_columns(df2)
 
@@ -118,6 +115,7 @@ def auto_match_columns(df1, df2):
     columns_1 = list(df1.columns)
     columns_2 = list(df2.columns)
 
+    st.write("### Column Matching")
     auto_match = st.checkbox("Enable automatic column renaming", value=True)
     column_replacements = {}
 
@@ -140,7 +138,6 @@ def manual_edit_columns(df1, df2):
     """Allow manual editing of column names for both dataframes."""
     st.markdown("---")
     st.write("### Manual Column Editing")
-    st.write("The QA Tool only compares columns with the same name. Please rename columns to match between the two files.")
 
     # Create a dataframe to display column names side by side
     max_len = max(len(df1.columns), len(df2.columns))
@@ -152,9 +149,9 @@ def manual_edit_columns(df1, df2):
     # Toggle to show/hide the table
     show_columns_table = st.checkbox("Show Column Names Table")
 
-    # conditionally display the table
+    # Display table, if chosen
     if show_columns_table:
-        # custom CSS to fix column names alignment
+        # custom CSS to fix column names aligned to the right
         st.markdown(
             """
             <style>
@@ -170,12 +167,15 @@ def manual_edit_columns(df1, df2):
         st.write("#### Column Names in File 1 and File 2")
         st.write(columns_df.to_html(index=False), unsafe_allow_html=True)
 
-    # Allow the user to select columns to rename
-    st.write("#### Select Columns to Rename in File 1")
-    columns_to_rename_file1 = st.multiselect("Select columns from File 1:", df1.columns)
+    col1, col2 = st.columns(2)
 
-    st.write("#### Select Columns to Rename in File 2")
-    columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
+    with col1:
+        st.write("#### Select Columns to Rename in File 1")
+        columns_to_rename_file1 = st.multiselect("Select columns from File 1:", df1.columns)
+
+    with col2:
+        st.write("#### Select Columns to Rename in File 2")
+        columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
 
     # Show text input for selected columns in File 1
     if columns_to_rename_file1:
@@ -311,10 +311,24 @@ if file_1 and file_2:
         st.markdown("---")
     
         common_columns = list(set(df1.columns) & set(df2.columns))
+
         if common_columns:
             st.write("### Select dimensions and metrics:")
             groupby_options = sorted([col for col in common_columns if col not in excluded_groupby_columns])
-            groupby_columns = st.multiselect("Select columns to group by:", groupby_options)
+            
+            # Filter default columns to only include those that exist in groupby_options
+            valid_default_groupby_columns = [col for col in default_groupby_columns if col in groupby_options]
+            
+            # Pre-select valid default columns and allow users to add more
+            groupby_columns = st.multiselect(
+                "Select columns to group by:",
+                groupby_options,
+                default=valid_default_groupby_columns
+            )
+            
+            # Ensure no duplicates in final group-by list
+            groupby_columns = list(set(valid_default_groupby_columns) | set(groupby_columns))
+
             numeric_columns = [col for col in common_columns if pd.api.types.is_numeric_dtype(df1[col])]
             selected_metrics = st.multiselect("Select metrics to compare:", numeric_columns)
 
@@ -323,3 +337,5 @@ if file_1 and file_2:
         else:
             st.error("No common columns found between the files.")
             st.error("You can edit the column names by clicking the 'Edit Column Names' button above.")
+
+                
