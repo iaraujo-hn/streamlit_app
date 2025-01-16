@@ -62,6 +62,7 @@ def find_best_match(input_cols, columns_list):
     return best_matches
 
 def convert_date_columns(df):
+    # Need to confirm if there are any issues that could happen with different date formats
     """Convert date related columns to datetime format"""
     date_keywords = ['date', 'week', 'month', 'year']
 
@@ -141,7 +142,7 @@ def manual_edit_columns(df1, df2):
     st.write("### Manual Column Editing")
     st.write("The QA Tool only compares columns with the same name. Please rename columns to match between the two files.")
 
-    # Create a DataFrame to display column names side by side
+    # Create a dataframe to display column names side by side
     max_len = max(len(df1.columns), len(df2.columns))
     columns_df = pd.DataFrame({
         "File 1 Columns": list(df1.columns) + [""] * (max_len - len(df1.columns)),
@@ -151,9 +152,9 @@ def manual_edit_columns(df1, df2):
     # Toggle to show/hide the table
     show_columns_table = st.checkbox("Show Column Names Table")
 
-    # Conditionally display the table
+    # conditionally display the table
     if show_columns_table:
-        # Custom CSS to fix column names alignment
+        # custom CSS to fix column names alignment
         st.markdown(
             """
             <style>
@@ -165,7 +166,7 @@ def manual_edit_columns(df1, df2):
             unsafe_allow_html=True
         )
 
-        # Display the DataFrame as a table without the index
+        # Display the dataframe as a table without the index
         st.write("#### Column Names in File 1 and File 2")
         st.write(columns_df.to_html(index=False), unsafe_allow_html=True)
 
@@ -194,15 +195,15 @@ def manual_edit_columns(df1, df2):
 
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframe and compare metrics."""
-    # Identify datetime columns in the DataFrame
+    # Identify datetime columns in the dataframe
     datetime_columns_1 = df1.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
     datetime_columns_2 = df2.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
 
-    # Rename columns to distinguish between files
+    # rename columns to distinguish between files
     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
 
-    # Ensure selected metrics are present in the DataFrame
+    # Ensure selected metrics in the dataframe
     missing_metrics_1 = [col for col in selected_metrics if f"{col} - File 1" not in df1.columns]
     missing_metrics_2 = [col for col in selected_metrics if f"{col} - File 2" not in df2.columns]
 
