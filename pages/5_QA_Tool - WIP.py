@@ -170,11 +170,11 @@ def manual_edit_columns(df1, df2):
     col1, col2 = st.columns(2)
 
     with col1:
-        st.write("#### Select Columns to Rename in File 1")
+        st.write("##### Select Columns to Rename in File 1")
         columns_to_rename_file1 = st.multiselect("Select columns from File 1:", df1.columns)
 
     with col2:
-        st.write("#### Select Columns to Rename in File 2")
+        st.write("##### Select Columns to Rename in File 2")
         columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
 
     # Show text input for selected columns in File 1
