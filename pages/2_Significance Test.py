@@ -2,101 +2,145 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from scipy.stats import t
-import math
-from math import sqrt
-from scipy.stats import norm
 
-# Function
-def significance_test(control_size, control_conversion, test_size, test_conversion, confidence_interval):
-    # Calculate conversion rates
+# Function to calculate conversion rates
+def calculate_conversion_rates(control_size, control_conversion, test_size, test_conversion):
     control_cvr = control_conversion / control_size
     test_cvr = test_conversion / test_size
+    control_cvr = control_cvr * 1.000000001 if control_cvr == test_cvr else control_cvr  # Fix potential issues
+    return control_cvr, test_cvr
 
-    # Fixes the error when control and test cvr are the same 
-    control_cvr = control_cvr*1.000000001 if control_cvr == test_cvr else control_cvr
-
-    # Calculate standard deviations
+# Function to calculate pooled standard deviation and t-score
+def calculate_t_statistics(control_size, control_cvr, test_size, test_cvr):
     control_std = np.sqrt(control_cvr * (1 - control_cvr))
     test_std = np.sqrt(test_cvr * (1 - test_cvr))
-    
-    cvr_lift = (test_cvr / control_cvr)-1
-    
-    # Calculate pooled standard deviation
-    sp = np.sqrt(((control_size - 1) * control_std ** 2 + (test_size - 1) * test_std ** 2) / (test_size + control_size - 2))
+    sp = np.sqrt(((control_size - 1) * control_std ** 2 + (test_size - 1) * test_std ** 2) / (control_size + test_size - 2))
+    t_score = np.abs((test_cvr - control_cvr) / (sp * np.sqrt(1 / control_size + 1 / test_size)))
+    return sp, t_score
 
-    # T-Score
-    t_score = np.abs((test_cvr - control_cvr) / (sp * np.sqrt(1/test_size + 1/control_size))) 
-    
-    # Calculate degrees of freedom
-    df = test_size + control_size - 2
-
-    # Calculate p-value
+# Function to calculate p-value and significance
+def calculate_p_value(t_score, control_size, test_size, confidence_interval):
+    df = control_size + test_size - 2
     p_value = 2 * (1 - t.cdf(np.abs(t_score), df))
-    
-    # Print results
-    confidence_interval = float(confidence_interval.strip('%')) / 100
     threshold = 1 - confidence_interval
-    
-    if p_value < threshold:
-        significant_result = '<span style="color:green;"><b>Significant!</b></span>'
+    is_significant = p_value < threshold
+    return p_value, is_significant
+
+# Function to generate the detailed result message
+def generate_result_message(is_significant, control_cvr, test_cvr, cvr_lift, confidence_level):
+    if is_significant:
+        if test_cvr > control_cvr:
+            message = (f'<span style="color:green;"><b>Significant!</b></span>\n\n'
+                       f'Test Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift*100:.1f}% higher than '
+                       f'Control Group conversion rate ({control_cvr*100:.4f}%).\n\n'
+                       f'<b>You can be {confidence_level}% confident that Test Group will perform better than Control Group.</b>')
+        else:
+            message = (f'<span style="color:green;"><b>Significant!</b></span>\n\n'
+                       f'Test Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift*100:.1f}% lower than '
+                       f'Control Group conversion rate ({control_cvr*100:.4f}%).\n\n'
+                       f'<b>You can be {confidence_level}% confident that Control Group will perform better than Test Group.</b>')
     else:
-        significant_result = '<span style="color:red;"><b>Not significant!</b></span>'
+        if test_cvr > control_cvr:
+            message = (f'<span style="color:red;"><b>Not significant!</b></span>\n\n'
+                       f'Test Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift*100:.1f}% higher than '
+                       f'Control Group conversion rate ({control_cvr*100:.4f}%).\n\n'
+                       f'<b>However, you cannot be {confidence_level}% confident that Test Group will perform better than Control Group.</b>')
+        else:
+            message = (f'<span style="color:red;"><b>Not significant!</b></span>\n\n'
+                       f'Test Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift*100:.1f}% lower than '
+                       f'Control Group conversion rate ({control_cvr*100:.4f}%).\n\n'
+                       f'<b>However, you cannot be {confidence_level}% confident that Control Group will perform better than Test Group.</b>')
+    return message
 
-    if p_value < threshold and test_cvr > control_cvr:
-        result_message = f'<b>{significant_result}</b>\n\nTest Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift * 100:.1f}% higher than Control Group conversion rate ({control_cvr*100:.4f}%).\n\n<b>You can be {int(confidence_interval*100)}% confident that Test Group will perform better than Control Group.</b>'
-    elif p_value < threshold and test_cvr < control_cvr:
-        result_message = f'<b>{significant_result}</b>\n\nTest Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift * 100:.1f}% lower than Control Group conversion rate ({control_cvr*100:.4f}%).\n\n<b>You can be {int(confidence_interval*100)}% confident that Control Group will perform better than Test Group.</b>'
-    elif p_value > threshold and test_cvr > control_cvr:
-        result_message = f'<b>{significant_result}</b>\n\nTest Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift * 100:.1f}% higher than Control Group conversion rate ({control_cvr*100:.4f}%).\n\n<b>However, you cannot be {int(confidence_interval*100)}% confident that Test Group will perform better than Control Group.</b>'
-    elif p_value > threshold and test_cvr < control_cvr:
-        result_message = f'<b>{significant_result}</b>\n\nTest Group conversion rate ({test_cvr*100:.4f}%) was {cvr_lift * 100:.1f}% lower than Control Group conversion rate ({control_cvr*100:.4f}%).\n\n<b>However, you cannot be {int(confidence_interval*100)}% confident that Control Group will perform better than Test Group.</b>'
+# Function to perform significance test
+def significance_test(control_size, control_conversion, test_size, test_conversion, confidence_interval):
+    confidence_interval = float(confidence_interval.strip('%')) / 100
+    control_cvr, test_cvr = calculate_conversion_rates(control_size, control_conversion, test_size, test_conversion)
+    _, t_score = calculate_t_statistics(control_size, control_cvr, test_size, test_cvr)
+    p_value, is_significant = calculate_p_value(t_score, control_size, test_size, confidence_interval)
+    
+    cvr_lift = (test_cvr / control_cvr) - 1
+    result_message = generate_result_message(is_significant, control_cvr, test_cvr, cvr_lift, int(confidence_interval * 100))
+    significance_result = "Significant" if is_significant else "Not Significant"
+    result_df = pd.DataFrame({
+        'Metric': ['Control Rate', 'Test Rate', 't-score', 'p-value', 'Confidence Level'],
+        'Result': [f'{control_cvr*100:.3}%', f'{test_cvr*100:.3}%', t_score, p_value, f'{confidence_interval*100}%']
+    })
+    return result_message, significance_result, result_df
+
+# Function to handle manual input
+def handle_manual_input():
+    control_size = st.sidebar.number_input("Control Group Size", value=1000)
+    control_conversion = st.sidebar.number_input("Control Group Conversions", value=50)
+    test_size = st.sidebar.number_input("Test Group Size", value=1000)
+    test_conversion = st.sidebar.number_input("Test Group Conversions", value=60)
+    confidence_interval = st.sidebar.selectbox("#### Statistical Confidence", ['90%', '95%', '99%'], index=1)
+
+    if st.sidebar.button("Calculate"):
+        result_message, _, result_df = significance_test(control_size, control_conversion, test_size, test_conversion, confidence_interval)
+        st.write('#### Result:')
+        st.markdown(f'<p style="font-size:20px;">{result_message}</p>', unsafe_allow_html=True)
         
-    result_dict = {
-        'Metric': ['Control Rate', 'Test Rate', 't-score', 'p-value', 'Result', 'Confidence level'],
-        'Result': [f'{control_cvr*100:.3}%', f'{test_cvr*100:.3}%', t_score, p_value, significant_result, f'{confidence_interval*100}%']
-    }
-    
-    result_df = pd.DataFrame(result_dict)
+        # Remove index and align column names to the left
+        styled_df = result_df.style.hide_index().set_table_styles([{
+            'selector': 'th',
+            'props': [('text-align', 'left')]
+        }])
+        
+        st.write('#### Test Results:')
+        st.write(styled_df.to_html(escape=False), unsafe_allow_html=True)
 
-    
-    return result_message, result_df
+# Function to handle file upload
+def handle_file_upload():
+    uploaded_file = st.sidebar.file_uploader("Upload CSV File", type="csv")
+    if uploaded_file:
+        data = pd.read_csv(uploaded_file)
+        st.sidebar.write("### Select Columns for A/B Test")
+        control_size_col = st.sidebar.selectbox("Control Size Column", data.columns)
+        control_conversion_col = st.sidebar.selectbox("Control Conversion Column", data.columns)
+        test_size_col = st.sidebar.selectbox("Test Size Column", data.columns)
+        test_conversion_col = st.sidebar.selectbox("Test Conversion Column", data.columns)
+        confidence_interval = st.sidebar.selectbox("#### Statistical Confidence", ['90%', '95%', '99%'], index=1)
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        if st.sidebar.button("Run A/B Test"):
+            results = []
+            for idx, row in data.iterrows():
+                _, significance_result, result_df = significance_test(
+                    row[control_size_col],
+                    row[control_conversion_col],
+                    row[test_size_col],
+                    row[test_conversion_col],
+                    confidence_interval
+                )
+                row_result = row.to_dict()
+                row_result.update({
+                    'Control Rate': result_df.iloc[0, 1],
+                    'Test Rate': result_df.iloc[1, 1],
+                    'T-Score': result_df.iloc[2, 1],
+                    'P-Value': result_df.iloc[3, 1],
+                    'Confidence Level': result_df.iloc[4, 1],
+                    'Significant': significance_result
+                })
+                results.append(row_result)
 
-# Streamlit page configuration #
+            results_df = pd.DataFrame(results)
+            st.write("#### Results from Uploaded File")
+            st.write(results_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-st.set_page_config(page_title="Statistical Significance Test", layout="wide")
+# Main function for Streamlit app
+def main():
+    st.set_page_config(page_title="Statistical Significance Test", layout="wide")
+    st.title('Statistical Significance Test')
+    st.markdown("---")
+    st.write('This tool helps you determine if the difference in conversion rates between your control and test groups is statistically significant using a two-tailed test.')
 
-st.title('Statistical Significance Test')
+    st.sidebar.title('A/B Test Parameters')
+    input_mode = st.sidebar.radio("Input Mode", ["Manual Input", "Upload File"])
 
-st.markdown("---")
+    if input_mode == "Manual Input":
+        handle_manual_input()
+    elif input_mode == "Upload File":
+        handle_file_upload()
 
-st.write('This tool helps you determine if the difference in conversion rates between your control and test groups is statistically significant using a two-tailed test. Enter the sizes and conversions for both groups, along with your desired confidence level.\n\nThe tool will then tell you if the difference is significant and provide detailed results, helping you make informed decisions about your test outcomes.')
-
-st.sidebar.title('A/B Test Parameters')
-
-# Control group input
-st.sidebar.write('### Control Group')
-control_size = st.sidebar.number_input("Control Group Size", value=1000)
-control_conversion = st.sidebar.number_input("Control Group Conversions", value=50)
-
-st.sidebar.write('### Test Group')
-test_size = st.sidebar.number_input("Test Group Size", value=1000)
-test_conversion = st.sidebar.number_input("Test Group Conversions", value=60)
-
-# confidence interval
-confidence_interval = st.sidebar.selectbox("#### Statistical Confidence", ['90%', '95%', '99%'], index=1)
-
-# Run results
-if st.sidebar.button("Calculate"):
-    st.write("#### Result:")
-    result_message, result_df = significance_test(control_size, control_conversion, test_size, test_conversion, confidence_interval)
-    
-    st.markdown(f'<p style="font-size:28px; color:green;">{result_message}</p>', unsafe_allow_html=True)
-
-    st.write('#### Test Results:')
-    st.write(result_df.to_html(escape=False), unsafe_allow_html=True)
-    
-
-st.sidebar.markdown("---")
-st.sidebar.image("./images/hn-logo.png", output_format="PNG", use_column_width="always")
+if __name__ == "__main__":
+    main()
