@@ -13,18 +13,50 @@ excluded_groupby_columns = [
 ]
 
 # ---------------------------------- File Upload ---------------------------------- #
+def clean_id_columns(df):
+    """
+    Fixes issue where numeric categorical columns from csv were adding an extra decimal place, causing mismatches.
+    - Converts numeric values to integers (removing decimals)
+    - Converts all values to strings to ensure consistency
+    """
+    for col in df.columns:
+        if "id" in col.lower():  # Check if id is in the column name
+            if pd.api.types.is_numeric_dtype(df[col]):
+                # Remove decimals by converting to integers and then to strings
+                df[col] = df[col].fillna(0).apply(lambda x: str(int(x)) if not pd.isnull(x) else "0")
+            else:
+                # Convert non numeric values directly to strings
+                df[col] = df[col].astype(str)
+    return df
+
+# @st.cache_data
+# def read_file(file):
+#     """Read csv or excel file based on file extension"""
+#     with st.spinner('Loading file...'):
+#         if file.name.endswith('.csv'):
+#             return pd.read_csv(file)
+#         elif file.name.endswith('.xlsx'):
+#             return pd.read_excel(file, engine='openpyxl')  # adding engine to fix the issue where large files were throwing an error
+#         else:
+#             st.error("Unsupported file type. Please try uploading a CSV or Excel file.")
+#             return None
 
 @st.cache_data
 def read_file(file):
-    """Read csv or excel file based on file extension"""
+    """Read csv or excel file based on file extension and clean ID columns."""
     with st.spinner('Loading file...'):
         if file.name.endswith('.csv'):
-            return pd.read_csv(file)
+            df = pd.read_csv(file)
         elif file.name.endswith('.xlsx'):
-            return pd.read_excel(file, engine='openpyxl')  # adding engine to fix the issue where large files were throwing an error
+            df = pd.read_excel(file, engine='openpyxl')
         else:
-            st.error("Unsupported file type. Please try uploading a CSV or Excel file.")
+            st.error("Unsupported file type. Please upload a CSV or Excel file.")
             return None
+        
+        # Clean ID columns
+        df = clean_id_columns(df)
+        return df
+
 
 def find_best_match(input_cols, columns_list):
     """Find the best match for each input column using Levenshtein distance, with improved logic to avoid mismatches."""
@@ -107,19 +139,35 @@ def check_and_convert_to_numeric(df, column_name):
 
 # ---------------------------------- UI Components ---------------------------------- #
 
+# def clean_id_columns(df):
+#     """
+#     Adds extra protection for columns with 'ID' in the name:
+#     - Converts numeric values to integers (removing decimals).
+#     - Converts all values to strings.
+#     """
+#     for col in df.columns:
+#         if "id" in col.lower():  # check if id is in the column name
+#             if pd.api.types.is_numeric_dtype(df[col]):
+#                 # convert numeric values to integers, then to strings
+#                 df[col] = df[col].fillna(0).astype(int).astype(str)
+#             else:
+#                 # convert non-numeric values directly to strings
+#                 df[col] = df[col].astype(str)
+#     return df
+
 def clean_id_columns(df):
     """
-    Adds extra protection for columns with 'ID' in the name:
+    Cleans columns with 'ID' in their name:
     - Converts numeric values to integers (removing decimals).
-    - Converts all values to strings.
+    - Converts all values to strings to ensure consistency.
     """
     for col in df.columns:
-        if "id" in col.lower():  # check if id is in the column name
+        if "id" in col.lower():  # Check if 'id' is in the column name
             if pd.api.types.is_numeric_dtype(df[col]):
-                # convert numeric values to integers, then to strings
-                df[col] = df[col].fillna(0).astype(int).astype(str)
+                # Remove decimals by converting to integers and then to strings
+                df[col] = df[col].fillna(0).apply(lambda x: str(int(x)) if not pd.isnull(x) else "0")
             else:
-                # convert non-numeric values directly to strings
+                # Convert non-numeric values directly to strings
                 df[col] = df[col].astype(str)
     return df
 
@@ -328,15 +376,20 @@ def manual_edit_columns(df1, df2):
 def prepare_group_and_metric_options(df1, df2, default_groupby_columns, excluded_groupby_columns):
     """
     Prepare group by and metrics options:
-    - Ensure default groupby columns are preselected in the group by dropdown
-    - Treat default groupby columns as categorical
-    - Exclude default groupby columns from metrics options
+    - Ensure default groupby columns are not preselected in the group by dropdown if they contain "ID".
+    - Treat default groupby columns as categorical.
+    - Exclude default groupby columns from metrics options.
     """
     common_columns = list(set(df1.columns) & set(df2.columns))
 
-    # Group by options
+    # Group by options: Exclude columns in the excluded groupby list
     groupby_options = sorted([col for col in common_columns if col not in excluded_groupby_columns])
-    valid_default_groupby_columns = [col for col in default_groupby_columns if col in groupby_options]
+
+    # Filter default groupby columns to exclude those with "ID" in their name
+    valid_default_groupby_columns = [
+        col for col in default_groupby_columns
+        if col in groupby_options and "id" not in col.lower()
+    ]
 
     # Ensure default group by columns are treated as categorical
     for col in default_groupby_columns:
@@ -345,13 +398,14 @@ def prepare_group_and_metric_options(df1, df2, default_groupby_columns, excluded
         if col in df2.columns:
             df2[col] = df2[col].astype(str)
 
-    # Numeric metrics options, excluding group by columns
+    # Numeric metrics options: Exclude groupby columns
     numeric_columns = [
         col for col in common_columns
         if pd.api.types.is_numeric_dtype(df1[col]) and col not in valid_default_groupby_columns
     ]
 
     return groupby_options, valid_default_groupby_columns, numeric_columns
+
 
 
 def clean_and_convert_to_numeric(series):
