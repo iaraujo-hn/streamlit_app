@@ -239,7 +239,7 @@ def display_uploaded_data(file_1, file_2):
 
         # Conditionally display the data
         if st.session_state.show_data:
-            st.write("### Uploaded Data:")
+            # st.write("### Uploaded Data:")
             tab1, tab2 = st.tabs(["File 1", "File 2"])
 
             with tab1:
@@ -570,7 +570,3 @@ if file_1 and file_2:
 
         if st.button("Compare"):
             group_and_compare(df1, df2, groupby_columns, selected_metrics)
-
-
-
-                
