@@ -243,11 +243,11 @@ def display_uploaded_data(file_1, file_2):
             tab1, tab2 = st.tabs(["File 1", "File 2"])
 
             with tab1:
-                st.write("### File 1:")
+                # st.write("### File 1:")
                 st.write(df1)
 
             with tab2:
-                st.write("### File 2:")
+                # st.write("### File 2:")
                 st.write(df2)
 
         return df1, df2
