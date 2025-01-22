@@ -165,7 +165,7 @@ def clean_id_columns(df):
         if "id" in col.lower():  # Check if 'id' is in the column name
             if pd.api.types.is_numeric_dtype(df[col]):
                 # Remove decimals by converting to integers and then to strings
-                df[col] = df[col].fillna(0).apply(lambda x: str(int(x)) if not pd.isnull(x) else "0")
+                df[col] = df[col].apply(lambda x: str(int(x)) if not pd.isnull(x) else "0")
             else:
                 # Convert non-numeric values directly to strings
                 df[col] = df[col].astype(str)
@@ -484,8 +484,8 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
             merged_df[pct_diff_col] = (merged_df[diff_col] / merged_df[col_B]) * 100
 
             # Format the percentage difference
-            results[col_A] = merged_df[col_A]
-            results[col_B] = merged_df[col_B]
+            results[col_A] = merged_df[col_A].fillna(0)
+            results[col_B] = merged_df[col_B].fillna(0)
             results[diff_col] = merged_df[diff_col]
             results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
 
