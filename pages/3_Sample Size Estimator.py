@@ -130,6 +130,6 @@ if st.sidebar.button("Calculate"):
     st.dataframe(styled_results_df)
 
 st.sidebar.markdown("---")
-st.sidebar.image("images/hn-logo.png", output_format="PNG", use_column_width="always")
+st.sidebar.image("images/hn-logo.png", output_format="PNG")
 
 # streamlit run 1_Home.py --server.enableXsrfProtection false
