@@ -98,7 +98,7 @@ def find_best_match(input_cols, columns_list):
                     best_distance = distance
 
         # only assign a match if it meets the threshold and does not overwrite meaningful differences
-        if best_match and best_distance <= 2:  # threshold for levenshtein distance. This is how many fixes are needed to match the strings
+        if best_match and best_distance <= 3:  # threshold for levenshtein distance. This is how many fixes are needed to match the strings
             best_matches[input_col] = best_match
             used_matches.add(best_match.lower())
         else:
