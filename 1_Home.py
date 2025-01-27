@@ -43,4 +43,7 @@ st.markdown("##### 3. Campaign Duration Simulator: ")
 # st.markdown('<a href="pages/3_Sample Size Estimator.py" class="link"> Sample Size Estimator </a>', unsafe_allow_html=True)
 st.write('Estimate the optimal campaign duration when factors like lift and control group size are uncertain. This simulation tool helps you plan effectively by considering various scenarios.')
 
+st.markdown("##### 4. QA Tool")
+st.write("The QA Tool compares data between two files, highlighting discrepancies. Upload CSV or Excel files, match column names, and group by selected columns. It provides clear, visual feedback to ensure data consistency and accuracy, ideal for quick data validation.")
+
 # streamlit run 1_Home.py --server.enableXsrfProtection false 
