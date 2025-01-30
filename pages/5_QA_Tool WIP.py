@@ -2,15 +2,25 @@
 import streamlit as st
 import pandas as pd
 import re  # regex
+import chardet
 import Levenshtein
 
-# define the list of default columns to be included in the group by session
+# ---------------------------------- Dictionaries ---------------------------------- #
+# Columns to be included in the group by selection
 default_groupby_columns = ['placement_id','campaign_id', "creative_id", 'site_id']
 
-# columns to exclude from the group by selection
+# Columns to exclude from the group by selection
 excluded_groupby_columns = [
     'impressions', 'clicks', 'Click', 'spend', 'sessions', 'page_views', 'revenue', 'conversions'
 ]
+
+# Define common column mappings for automatic matching
+column_mapping = {
+    "site_dcm": "Site (CM360)",
+    # "Site ID (CM360)": "site_id_dcm",
+    # "spend": "Media Cost",
+    "Cost": "spend",
+}
 
 # ---------------------------------- File Upload ---------------------------------- #
 def clean_id_columns(df):
@@ -29,25 +39,79 @@ def clean_id_columns(df):
                 df[col] = df[col].astype(str)
     return df
 
+# @st.cache_data
+# def read_file(file):
+#     """Read csv or excel file based on file extension and clean ID columns."""
+#     with st.spinner('Loading file...'):
+#         if file.name.endswith('.csv'):
+#             df = pd.read_csv(file)
+#         elif file.name.endswith('.xlsx'):
+#             df = pd.read_excel(file, engine='openpyxl')
+#         else:
+#             st.error("Unsupported file type. Please upload a CSV or Excel file.")
+#             return None
+        
+#         # Clean ID columns
+#         df = clean_id_columns(df)
+#         return df
+
 @st.cache_data
 def read_file(file):
-    """Read csv or excel file based on file extension and clean ID columns."""
+    """Read CSV or Excel file with automatic encoding detection and user-friendly error handling."""
     with st.spinner('Loading file...'):
-        if file.name.endswith('.csv'):
-            df = pd.read_csv(file)
-        elif file.name.endswith('.xlsx'):
-            df = pd.read_excel(file, engine='openpyxl')
-        else:
-            st.error("Unsupported file type. Please upload a CSV or Excel file.")
+        df = None
+        error_message = None
+
+        try:
+            if file.name.endswith('.csv'):
+                raw_bytes = file.read(10000)  # Read a portion of the file
+                detected_encoding = chardet.detect(raw_bytes)['encoding'] # Detect encoding for CSV files
+                file.seek(0)  # Reset file pointer after reading
+                
+                df = pd.read_csv(file, encoding=detected_encoding if detected_encoding else 'utf-8') # Read csv using detected encoding
+
+            elif file.name.endswith('.xlsx'):
+                df = pd.read_excel(file, engine='openpyxl')
+
+            else:
+                st.error("❌ Unsupported file type. Please upload a **CSV or Excel file**.")
+                return None
+
+            # Validate if the dataframe has proper headers and data
+            if df.empty or df.columns.notna().sum() <= 1:
+                error_message = "⚠️ The file seems to be **empty or incorrectly formatted**. Please check that it contains valid data."
+
+        except UnicodeDecodeError:
+            error_message = "⚠️ There was an issue reading the file due to **invalid characters**. Try saving it again using UTF-8 encoding."
+        except pd.errors.EmptyDataError:
+            error_message = "⚠️ The file appears to be **empty**. Please verify its contents."
+        except pd.errors.ParserError:
+            error_message = "⚠️ The file format may be **corrupted or incorrect**. Try saving it again as a new file."
+        except Exception as e:
+            error_message = f"⚠️ Unexpected error: {str(e)}"
+        
+        # If any error was detected, display it and troubleshooting tips
+        if error_message:
+            st.error(error_message)
+
+            st.markdown("### How to Fix This:")
+            st.markdown("""
+            - **Check if the file is empty:** Open it and confirm it contains data.
+            - **Ensure it's in CSV or Excel format:** Other file types (e.g., PDF, Word) are not supported.
+            - **If you see character issues, save the file using UTF-8 encoding.**  
+              - In Excel: Save As → Choose CSV (UTF-8)
+              - In Notepad: File → Save As → Encoding: UTF-8
+            - **If it's an Excel file, try saving it again as a new Excel file:** This can fix formatting issues.
+            - **If the issue persists, try uploading a different version of the file.**
+            """)
             return None
         
-        # Clean ID columns
+        # Clean ID columns after successful load
         df = clean_id_columns(df)
         return df
 
-
 def find_best_match(input_cols, columns_list):
-    """Find the best match for each input column using Levenshtein distance, with improved logic to avoid mismatches."""
+    """Find the best match for each input column using Levenshtein distance with logic to avoid mismatches."""
     input_cols_lower = [col.lower() for col in input_cols]
     columns_list_lower = [col.lower() for col in columns_list]
     used_matches = set()
@@ -86,7 +150,7 @@ def find_best_match(input_cols, columns_list):
                     best_distance = distance
 
         # only assign a match if it meets the threshold and does not overwrite meaningful differences
-        if best_match and best_distance <= 3:  # threshold for levenshtein distance. This is how many fixes are needed to match the strings
+        if best_match and best_distance <= 3:  # threshold for levenshtein distance. this is how many fixes are needed to match the strings
             best_matches[input_col] = best_match
             used_matches.add(best_match.lower())
         else:
@@ -127,22 +191,6 @@ def check_and_convert_to_numeric(df, column_name):
 
 # ---------------------------------- UI Components ---------------------------------- #
 
-def clean_id_columns(df):
-    """
-    Cleans columns with 'ID' in their name:
-    - Converts numeric values to integers (removing decimals).
-    - Converts all values to strings to ensure consistency.
-    """
-    for col in df.columns:
-        if "id" in col.lower():  # Check if 'id' is in the column name
-            if pd.api.types.is_numeric_dtype(df[col]):
-                # Remove decimals by converting to integers and then to strings
-                df[col] = df[col].apply(lambda x: str(int(x)) if not pd.isnull(x) else "0")
-            else:
-                # Convert non-numeric values directly to strings
-                df[col] = df[col].astype(str)
-    return df
-
 def display_uploaded_data(file_1, file_2):
     """Upload and display data from two files with toggling and tabs."""
     df1 = read_file(file_1)
@@ -157,208 +205,139 @@ def display_uploaded_data(file_1, file_2):
         if "show_data" not in st.session_state:
             st.session_state.show_data = False
 
-        # Toggle button for showing/hiding data
+        # Toggle button for showing or hiding data
         if st.button("View Data"):
             st.session_state.show_data = not st.session_state.show_data
 
         # Conditionally display the data
         if st.session_state.show_data:
-            # st.write("### Uploaded Data:")
-            tab1, tab2 = st.tabs(["File 1", "File 2"])
+            tab1, tab2 = st.tabs(["Main File", "File 2"])
 
             with tab1:
-                # st.write("### File 1:")
                 st.write(df1.head(10))
                 st.write('*Displaying the first 10 rows only.')
 
             with tab2:
-                # st.write("### File 2:")
                 st.write(df2.head(10))
                 st.write('*Displaying the first 10 rows only.')
 
         return df1, df2
     return None, None
-    
 
-def auto_match_columns(df1, df2):
+def auto_match_columns(df1, df2, column_mapping):
     """
     Automatically match and rename columns between two dataframes
-    Ensures default group by columns are treated as categorical
+    Ensures specific columns are renamed only if their counterpart exists in the other file.
     """
     columns_1 = list(df1.columns)
     columns_2 = list(df2.columns)
 
-    st.write("### Column Matching")
-    st.write("Column names between both files must match to compare data. We will automatically rename column names in File 2 to match File 1, if needed. If you would like to rename columns manually, click the button below.")
-    auto_match = st.checkbox("Enable automatic column renaming", value=True)
     column_replacements = {}
 
-    if auto_match:
-        matches = find_best_match(columns_2, columns_1)
-        for col, matched_col in matches.items():
-            if matched_col != col:
-                column_replacements[col] = matched_col
-        df2.rename(columns=column_replacements, inplace=True)
+    # Identify renaming candidates
+    for col1, col2 in column_mapping.items():
+        if col1 in columns_1 and col2 in columns_2:
+            # Rename column in file 2 to match main file
+            column_replacements[col2] = col1
+        elif col2 in columns_1 and col1 in columns_2:
+            # Rename column in main file to match file 2
+            column_replacements[col1] = col2
 
-        # if not column_replacements:
-        #     st.info("No columns were automatically renamed.")
-    else:
-        st.info("Automatic column renaming is disabled. Column names will remain as uploaded.")
+    # Apply renaming
+    df1.rename(columns=column_replacements, inplace=True)
+    df2.rename(columns=column_replacements, inplace=True)
 
-    # Ensure default group by columns are categorical
-    for col in default_groupby_columns:
-        if col in df1.columns:
-            df1[col] = df1[col].astype(str)
-        if col in df2.columns:
-            df2[col] = df2[col].astype(str)
+    # Regular auto matching process
+    matches = find_best_match(columns_2, columns_1)
+    for col, matched_col in matches.items():
+        if matched_col != col and col not in column_replacements:
+            column_replacements[col] = matched_col
+
+    df2.rename(columns=column_replacements, inplace=True)
 
     return df1, df2, column_replacements
 
-
 # ---------------------------------- UI Components ---------------------------------- #
 
-# def manual_edit_columns(df1, df2):
-#     """
-#     Allow manual editing of column names in File 2 to match File 1.
-#     Display column names side by side with an option to show/hide the table.
-#     Ensure File 1 remains unchanged.
-#     """
-#     st.markdown("---")
-#     st.write("### Manual Column Editing")
-
-#     # Create a dataframe to display column names side by side
-#     max_len = max(len(df1.columns), len(df2.columns))
-#     columns_df = pd.DataFrame({
-#         "File 1 Columns": list(df1.columns) + [""] * (max_len - len(df1.columns)),
-#         "File 2 Columns": list(df2.columns) + [""] * (max_len - len(df2.columns))
-#     })
-
-#     # Toggle to show/hide the table
-#     show_columns_table = st.checkbox("Show Column Names Table")
-
-#     if show_columns_table:
-#         # Custom CSS to fix column name alignment and styling
-#         st.markdown(
-#             """
-#             <style>
-#             .dataframe th {
-#                 text-align: left !important;
-#                 font-weight: bold;
-#                 background-color: #f0f2f6;
-#             }
-#             .dataframe td {
-#                 padding: 8px;
-#             }
-#             </style>
-#             """,
-#             unsafe_allow_html=True
-#         )
-
-#         st.write("#### Column Names in File 1 and File 2")
-#         st.write(columns_df.to_html(index=False), unsafe_allow_html=True)
-
-#     # ✅ REMOVE duplicate matching count message from here
-
-#     # Track manual renaming
-#     column_replacements = {}
-
-#     st.write("##### Select Columns to Rename in File 2")
-#     columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
-
-#     if columns_to_rename_file2:
-#         st.write("##### Rename Selected Columns in File 2 to Match File 1")
-
-#         for col2_name in columns_to_rename_file2:
-#             col1, _ = st.columns([2, 3])
-
-#             with col1:
-#                 # Dropdown now allows typing or selecting a column from File 1
-#                 new_col_name2 = st.selectbox(
-#                     f"Rename '{col2_name}' (File 2):", 
-#                     [""] + list(df1.columns),  # First option is blank for manual input
-#                     key=f"rename_file2_{col2_name}"
-#                 )
-
-#                 # Rename the column **only if a value is entered**
-#                 if new_col_name2 and col2_name != new_col_name2:
-#                     column_replacements[col2_name] = new_col_name2
-#                     df2.rename(columns={col2_name: new_col_name2}, inplace=True)
-
-#     # ✅ Matching count **only updates after renaming**, not before
-#     final_matching = sum(1 for col in df2.columns if col in df1.columns)
-
-#     if column_replacements:
-#         # st.write("#### Manually Renamed Columns:")
-#         for old_col, new_col in column_replacements.items():
-#             st.write(f"**'{old_col}'** renamed to **'{new_col}'**")
-#         st.success(f"✅ {final_matching} out of {len(df1.columns)} columns in File 2 now match File 1.")
-
-#     return df1, df2, column_replacements
-
-def manual_edit_columns(df1, df2):
+def manual_edit_columns(df1, df2, column_replacements_auto):
     """
-    Allow manual editing of column names in File 2 to match File 1.
-    Display column names side by side with an option to show/hide the table.
-    Ensure File 1 remains unchanged.
+    Allow manual editing of column names in File 2 to match main file.
+    Display column names side by side, placing matching columns at the top.
+    Ensure main file remains unchanged.
     """
-    st.markdown("---")
-    st.write("### Manual Column Editing")
+    # Identify matching and non-matching columns
+    matching_columns = [col for col in df1.columns if col in df2.columns]
+    non_matching_columns_1 = [col for col in df1.columns if col not in df2.columns]
+    non_matching_columns_2 = [col for col in df2.columns if col not in df1.columns]
 
-    # Create a dataframe to display column names side by side
-    max_len = max(len(df1.columns), len(df2.columns))
+    # Order the dataframe: matches first, then non-matches in their original order
+    ordered_columns_1 = matching_columns + non_matching_columns_1
+    ordered_columns_2 = matching_columns + non_matching_columns_2
+
+    # Create dataframe for UI display
+    max_len = max(len(ordered_columns_1), len(ordered_columns_2))
     columns_df = pd.DataFrame({
-        "File 1 Columns": list(df1.columns) + [""] * (max_len - len(df1.columns)),
-        "File 2 Columns": list(df2.columns) + [""] * (max_len - len(df2.columns))
+        "Main File": ordered_columns_1 + [""] * (max_len - len(ordered_columns_1)),
+        "File 2": ordered_columns_2 + [""] * (max_len - len(ordered_columns_2))
     })
 
-    # Highlight matching columns in green
+    # Function to highlight matching columns
     def highlight_matching_cols(val):
-        if val in df1.columns and val in df2.columns:
-            return "background-color: #c6f5c6; font-weight: bold;"  # Green for matches
+        if val in matching_columns:
+            return "background-color: #c6f5c6; font-weight: bold;"  # Green highlight
         return ""
 
     # Toggle to show/hide the table
-    show_columns_table = st.checkbox("Show Column Names Table")
+    show_columns_table = st.checkbox("Show column names")
 
     if show_columns_table:
-        # Custom CSS to fix column width and prevent text cutoff
+        # Column name styling
         st.markdown(
             """
             <style>
             div[data-testid="stTable"] {
-                width: 100% !important; /* Expand table width */
+                width: 100% !important;
             }
             table {
                 width: 100% !important;
-                table-layout: auto !important; /* Let columns adjust dynamically */
+                table-layout: auto !important;
             }
             thead th {
                 text-align: left !important;
                 font-weight: bold;
                 background-color: #f0f2f6;
-                white-space: nowrap; /* Prevent header text from wrapping */
+                white-space: nowrap;
             }
             tbody td {
                 padding: 12px;
-                white-space: normal !important; /* Allow text wrapping */
-                word-wrap: break-word !important; /* Ensure long words break */
-                max-width: 600px !important; /* Increase max width */
+                white-space: normal !important;
+                word-wrap: break-word !important;
+                max-width: 600px !important;
             }
             </style>
             """,
             unsafe_allow_html=True
         )
 
-        # Apply styling to highlight matching columns and expand visibility
         styled_df = (
             columns_df.style
             .applymap(highlight_matching_cols)
-            .set_properties(**{"max-width": "600px", "white-space": "normal"})  # Force larger width
+            .set_properties(**{"max-width": "600px", "white-space": "normal"})
         )
 
-        st.write("#### Column Names in File 1 and File 2")
-        st.write("Columns in green match between File 1 and File 2.")
-        st.table(styled_df)  # Use st.table instead of st.dataframe for better layout control
+        st.write("#### Column Names")
+        st.write("Columns in green match between Main File and File 2.")
+        
+        if column_replacements_auto:
+            renamed_columns_tooltip = "\n".join([f"{old} → {new}" for old, new in column_replacements_auto.items()])
+            tooltip_text = f"""
+            <div style="border-bottom: 1px dotted; display: inline; cursor: help;" title="{renamed_columns_tooltip}">
+            ℹ️ Automatically Renamed Columns (hover to view)
+            </div>
+            """
+        st.markdown(tooltip_text, unsafe_allow_html=True)
+
+        st.table(styled_df)
 
     # Track manual renaming
     column_replacements = {}
@@ -367,20 +346,18 @@ def manual_edit_columns(df1, df2):
     columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
 
     if columns_to_rename_file2:
-        st.write("##### Rename Selected Columns in File 2 to Match File 1")
+        st.write("##### Rename Selected Columns in File 2 to Match Main File")
 
         for col2_name in columns_to_rename_file2:
             col1, _ = st.columns([2, 3])
 
             with col1:
-                # Dropdown now allows typing or selecting a column from File 1
                 new_col_name2 = st.selectbox(
-                    f"Rename '{col2_name}' (File 2):", 
-                    [""] + list(df1.columns),  # First option is blank for manual input
+                    f"Rename '{col2_name}' (File 2):",
+                    [""] + list(df1.columns),
                     key=f"rename_file2_{col2_name}"
                 )
 
-                # Rename the column **only if a value is entered**
                 if new_col_name2 and col2_name != new_col_name2:
                     column_replacements[col2_name] = new_col_name2
                     df2.rename(columns={col2_name: new_col_name2}, inplace=True)
@@ -390,7 +367,7 @@ def manual_edit_columns(df1, df2):
     if column_replacements:
         for old_col, new_col in column_replacements.items():
             st.write(f"**'{old_col}'** renamed to **'{new_col}'**")
-        st.success(f"✅ {final_matching} out of {len(df1.columns)} columns in File 2 now match File 1.")
+        st.success(f"✅ {final_matching} out of {len(df1.columns)} columns in File 2 now match Main File.")
 
     return df1, df2, column_replacements
 
@@ -403,10 +380,10 @@ def prepare_group_and_metric_options(df1, df2, default_groupby_columns, excluded
     """
     common_columns = list(set(df1.columns) & set(df2.columns))
 
-    # Group by options: Exclude columns in the excluded groupby list
+    # Group by options: exclude columns in the excluded groupby list
     groupby_options = sorted([col for col in common_columns if col not in excluded_groupby_columns])
 
-    # Filter default groupby columns to exclude those with "ID" in their name
+    # Filter default groupby columns to exclude those with ID in their name
     valid_default_groupby_columns = [
         col for col in default_groupby_columns
         if col in groupby_options and "id" not in col.lower()
@@ -419,7 +396,7 @@ def prepare_group_and_metric_options(df1, df2, default_groupby_columns, excluded
         if col in df2.columns:
             df2[col] = df2[col].astype(str)
 
-    # Numeric metrics options: Exclude groupby columns
+    # Numeric metrics options: exclude groupby columns
     numeric_columns = [
         col for col in common_columns
         if pd.api.types.is_numeric_dtype(df1[col]) and col not in valid_default_groupby_columns
@@ -456,82 +433,6 @@ def ensure_numeric_and_clean(df, numeric_columns):
             df[col] = clean_and_convert_to_numeric(df[col])
     return df
 
-# def group_and_compare(df1, df2, groupby_columns, selected_metrics):
-#     """Group dataframes and compare metrics."""
-#     # Ensure groupby columns in default groupby columns are treated as strings
-#     for col in default_groupby_columns:
-#         if col in df1.columns:
-#             df1[col] = df1[col].astype(str)
-#         if col in df2.columns:
-#             df2[col] = df2[col].astype(str)
-
-#     # Ensure groupby columns have consistent types across both dataframes
-#     for col in groupby_columns:
-#         if col in df1.columns and col in df2.columns:
-#             df1[col] = df1[col].astype(str)
-#             df2[col] = df2[col].astype(str)
-
-#     # Ensure numeric columns are converted to numeric types
-#     # Clean and ensure numeric columns, excluding default group by columns
-#     df1 = ensure_numeric_and_clean(df1, [col for col in selected_metrics if col not in default_groupby_columns])
-#     df2 = ensure_numeric_and_clean(df2, [col for col in selected_metrics if col not in default_groupby_columns])
-
-#     # Rename columns to distinguish between files, but only for selected groupby columns
-#     df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
-#     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
-
-#     # Group by the specified columns and sum the selected metrics
-#     df1_grouped = df1.groupby(groupby_columns)[[f"{col} - File 1" for col in selected_metrics]].sum().reset_index()
-#     df2_grouped = df2.groupby(groupby_columns)[[f"{col} - File 2" for col in selected_metrics]].sum().reset_index()
-
-#     # Merge the grouped dataframes
-#     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns, how="outer")
-
-#     # Prepare results DataFrame for output
-#     results = merged_df[groupby_columns].copy() if groupby_columns else pd.DataFrame()
-#     discrepancy_mask = pd.Series([False] * len(merged_df))
-
-#     for col in selected_metrics:
-#         col_A = f"{col} - File 1"
-#         col_B = f"{col} - File 2"
-#         diff_col = f"{col} Difference"
-#         pct_diff_col = f"{col} % Difference"
-
-#         if col_A in merged_df.columns and col_B in merged_df.columns:
-#             # Calculate differences
-#             merged_df[diff_col] = merged_df[col_A] - merged_df[col_B]
-#             merged_df[pct_diff_col] = (merged_df[diff_col] / merged_df[col_B]) * 100
-
-#             # Format the percentage difference
-#             results[col_A] = merged_df[col_A].fillna(0)
-#             results[col_B] = merged_df[col_B].fillna(0)
-#             results[diff_col] = merged_df[diff_col]
-#             results[pct_diff_col] = merged_df[pct_diff_col].apply(lambda x: f"{x:.2f}%")
-
-#             # Identify rows with significant discrepancies
-#             discrepancy_mask |= merged_df[pct_diff_col].abs() > 0.5
-
-#     # Add a column for discrepancies
-#     if not results.empty:
-#         results["Sig. Discrepancy"] = discrepancy_mask.apply(lambda x: "Yes" if x else "No")
-
-#     st.write("#### Side by Side Comparison")
-#     st.write(results)
-
-#     if discrepancy_mask.any():
-#         significant_discrepancies = results[discrepancy_mask]
-
-#         # Calculate discrepancy percentage
-#         grouped_total_rows = len(merged_df)
-#         num_discrepancies = len(significant_discrepancies.drop_duplicates(subset=groupby_columns))
-#         discrepancy_percentage = (num_discrepancies / grouped_total_rows) * 100
-
-#         st.error(f"Found {num_discrepancies} rows with discrepancies larger than 0.5%, representing {discrepancy_percentage:.2f}% of the total grouped data.")
-#         st.write("#### Significant Discrepancies (Difference > 0.5%)")
-#         st.write(significant_discrepancies)
-#     else:
-#         st.success("No discrepancies greater than 0.5% found.")
-
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframes and compare metrics, ensuring 0,0 pairs are included in the comparison."""
     for col in default_groupby_columns:
@@ -548,10 +449,10 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     df1 = ensure_numeric_and_clean(df1, [col for col in selected_metrics if col not in default_groupby_columns])
     df2 = ensure_numeric_and_clean(df2, [col for col in selected_metrics if col not in default_groupby_columns])
 
-    df1.columns = [f"{col} - File 1" if col not in groupby_columns else col for col in df1.columns]
+    df1.columns = [f"{col} - Main File" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
 
-    df1_grouped = df1.groupby(groupby_columns)[[f"{col} - File 1" for col in selected_metrics]].sum().reset_index()
+    df1_grouped = df1.groupby(groupby_columns)[[f"{col} - Main File" for col in selected_metrics]].sum().reset_index()
     df2_grouped = df2.groupby(groupby_columns)[[f"{col} - File 2" for col in selected_metrics]].sum().reset_index()
 
     merged_df = pd.merge(df1_grouped, df2_grouped, on=groupby_columns, how="outer").fillna(0)
@@ -560,7 +461,7 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     discrepancy_mask = pd.Series([False] * len(merged_df))
 
     for col in selected_metrics:
-        col_A = f"{col} - File 1"
+        col_A = f"{col} - Main File"
         col_B = f"{col} - File 2"
         diff_col = f"{col} Difference"
         pct_diff_col = f"{col} % Difference"
@@ -589,21 +490,43 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     if not results.empty:
         results["Sig. Discrepancy"] = discrepancy_mask.apply(lambda x: "Yes" if x else "No")
 
-    st.write("#### Side by Side Comparison")
+    # Store results persistently in session state
+    st.session_state["comparison_results"] = results
+    st.session_state["discrepancy_mask"] = discrepancy_mask
+    st.session_state["groupby_columns"] = groupby_columns  # Store for later use
+
+    # Always display the main comparison table
+    st.write("### Side-by-Side Comparison")
     st.write(results)
 
+    # Display discrepancy summary above the toggle
     if discrepancy_mask.any():
         significant_discrepancies = results[discrepancy_mask]
-
-        grouped_total_rows = len(merged_df)
+        grouped_total_rows = len(results)
         num_discrepancies = len(significant_discrepancies.drop_duplicates(subset=groupby_columns))
         discrepancy_percentage = (num_discrepancies / grouped_total_rows) * 100
 
         st.error(f"Found {num_discrepancies} rows with discrepancies larger than 0.5%, representing {discrepancy_percentage:.2f}% of the total grouped data.")
-        st.write("#### Significant Discrepancies (Difference > 0.5%)")
-        st.write(significant_discrepancies)
     else:
-        st.success("No discrepancies greater than 0.5% found.")
+        st.success("✅ No discrepancies greater than 0.5% found.")
+
+def display_discrepancies():
+    """Displays discrepancies independently from the comparison function."""
+    if "comparison_results" not in st.session_state or "discrepancy_mask" not in st.session_state:
+        return  # do nothing if results don't exist yet
+
+    results = st.session_state["comparison_results"]
+    discrepancy_mask = st.session_state["discrepancy_mask"]
+
+    # Only show the toggle button if there are discrepancies
+    if discrepancy_mask.any():
+        show_discrepancy_table = st.checkbox("Show discrepancy table")
+
+        if show_discrepancy_table:
+            significant_discrepancies = results[discrepancy_mask]
+            st.write("### Significant Discrepancies")
+            st.write("Showing rows with discrepancies larger than 0.5%. Click on **Compare** again to see the full comparison.")
+            st.write(significant_discrepancies)
 
 def check_and_convert_to_numeric(df, col):
     """Convert column to numeric, coercing errors."""
@@ -622,24 +545,20 @@ if file_1 and file_2:
     st.markdown("---")
 
     if df1 is not None and df2 is not None:
-        df1, df2, column_replacements_auto = auto_match_columns(df1, df2)
+        df1, df2, column_replacements_auto = auto_match_columns(df1, df2, column_mapping)
 
-        # ✅ Matching summary appears **only above the "Edit Column Names" button**
         total_columns = len(df1.columns)
         matching_after_auto = sum(1 for col in df2.columns if col in df1.columns)
 
-        # **List of Auto-Matched Columns**
-        if column_replacements_auto:
-            st.write("#### Automatically Renamed Columns:")
-            for old_col, new_col in column_replacements_auto.items():
-                st.write(f"**'{old_col}'** renamed to **'{new_col}'**")
+        st.write("#### Columns Editing")
+        st.write("QA Tool automatically renames similar columns since only matching names can be compared.")
 
         if matching_after_auto == total_columns:
-            st.success(f"✅ All {total_columns} columns in File 2 now match File 1!")
+            st.success(f"✅ All {total_columns} columns in File 2 match Main File!")
         elif matching_after_auto > 0:
-            st.info(f"ℹ️ {matching_after_auto} out of {total_columns} columns in File 2 match File 1.")
+            st.info(f"ℹ️ {matching_after_auto} out of {total_columns} columns in File 2 match Main File.")
         else:
-            st.warning("⚠️ None of the columns in File 2 match File 1. Consider renaming manually.")
+            st.warning("⚠️ None of the columns in File 2 match Main File. Consider renaming manually.")
 
         # Toggle for manual edit options
         if "show_manual_edit" not in st.session_state:
@@ -649,7 +568,7 @@ if file_1 and file_2:
             st.session_state.show_manual_edit = not st.session_state.show_manual_edit
 
         if st.session_state.show_manual_edit:
-            df1, df2, column_replacements_manual = manual_edit_columns(df1, df2)
+            df1, df2, column_replacements_manual = manual_edit_columns(df1, df2, column_replacements_auto)
 
         st.markdown("---")
 
@@ -668,3 +587,5 @@ if file_1 and file_2:
 
         if st.button("Compare"):
             group_and_compare(df1, df2, groupby_columns, selected_metrics)
+
+        display_discrepancies()
