@@ -19,6 +19,7 @@ column_mapping = {
     "site_dcm": "Site (CM360)",
     # "Site ID (CM360)": "site_id_dcm",
     # "spend": "Media Cost",
+    'mmm_roas':'roas',
     "Cost": "spend",
 }
 
