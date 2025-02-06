@@ -18,7 +18,7 @@ excluded_groupby_columns = [
 column_mapping = {
     "site_dcm": "Site (CM360)",
     "Site ID (CM360)": "site_id_dcm",
-    # "spend": "Media Cost",
+    "spend": "Media Cost",
     "Cost": "spend"
 }
 
@@ -110,54 +110,128 @@ def read_file(file):
         df = clean_id_columns(df)
         return df
 
+# def find_best_match(input_cols, columns_list):
+#     """Find the best match for each input column using Levenshtein distance with logic to avoid mismatches."""
+#     input_cols_lower = [col.lower() for col in input_cols]
+#     columns_list_lower = [col.lower() for col in columns_list]
+#     used_matches = set()
+#     best_matches = {}
+
+#     for input_col, input_col_lower in zip(input_cols, input_cols_lower):
+#         best_match = None
+#         best_distance = float('inf')
+
+#         # prioritize exact matches
+#         for i, col in enumerate(columns_list_lower):
+#             if col in used_matches:  # avoid duplications
+#                 continue
+
+#             if col == input_col_lower:  # exact match
+#                 best_match = columns_list[i]
+#                 best_distance = 0
+#                 break
+
+#         # apply levenshtein distance only if no exact match found
+#         if not best_match:
+#             for i, col in enumerate(columns_list_lower):
+#                 if col in used_matches:  # avoid duplications
+#                     continue
+
+#                 distance = Levenshtein.distance(input_col_lower, col)
+
+#                 # avoid swapping similar but distinct columns
+#                 is_conflicting = (
+#                     (input_col_lower in col or col in input_col_lower)
+#                     and ("id" in input_col_lower and "id" not in col or "id" not in input_col_lower and "id" in col) # adds extra protection for columns with id in the name
+#                 )
+
+#                 if distance < best_distance and not is_conflicting:
+#                     best_match = columns_list[i]
+#                     best_distance = distance
+
+#         # only assign a match if it meets the threshold and does not overwrite meaningful differences
+#         if best_match and best_distance <= 3:  # threshold for levenshtein distance. this is how many fixes are needed to match the strings
+#             best_matches[input_col] = best_match
+#             used_matches.add(best_match.lower())
+#         else:
+#             best_matches[input_col] = input_col  # no suitable match found. retain original name
+
+#     return best_matches
+
+def preprocess_column_for_matching(column):
+    """
+    Preprocess a column name by removing 'name' and converting to lowercase.
+    Used to test if removing 'name' results in a match.
+    """
+    return re.sub(r'\bname\b', '', column.lower()).strip()
+
+import re
+import Levenshtein
+
+def preprocess_column_for_matching(column):
+    """
+    Preprocess a column name by removing 'name' and converting to lowercase.
+    Used to test if removing 'name' results in a match.
+    """
+    return re.sub(r'\bname\b', '', column.lower()).strip()
+
 def find_best_match(input_cols, columns_list):
-    """Find the best match for each input column using Levenshtein distance with logic to avoid mismatches."""
-    input_cols_lower = [col.lower() for col in input_cols]
-    columns_list_lower = [col.lower() for col in columns_list]
+    """
+    Find the best match for each input column using Levenshtein distance.
+    - If removing 'name' from both columns results in a match, apply the match.
+    - If removing 'name' doesn't result in a match, use standard Levenshtein matching.
+    """
     used_matches = set()
     best_matches = {}
 
-    for input_col, input_col_lower in zip(input_cols, input_cols_lower):
+    # Preprocess column names by removing 'name'
+    processed_input_cols = {col: preprocess_column_for_matching(col) for col in input_cols}
+    processed_columns_list = {col: preprocess_column_for_matching(col) for col in columns_list}
+
+    for input_col in input_cols:
         best_match = None
         best_distance = float('inf')
 
-        # prioritize exact matches
-        for i, col in enumerate(columns_list_lower):
-            if col in used_matches:  # avoid duplications
+        # Preprocessed version of input column
+        input_col_processed = processed_input_cols[input_col]
+
+        # Try exact match after removing "name"
+        for col in columns_list:
+            if col in used_matches:
                 continue
 
-            if col == input_col_lower:  # exact match
-                best_match = columns_list[i]
+            if input_col_processed == processed_columns_list[col]:
+                best_match = col
                 best_distance = 0
                 break
 
-        # apply levenshtein distance only if no exact match found
+        # Apply Levenshtein distance if no exact match is found
         if not best_match:
-            for i, col in enumerate(columns_list_lower):
-                if col in used_matches:  # avoid duplications
+            for col in columns_list:
+                if col in used_matches:
                     continue
 
-                distance = Levenshtein.distance(input_col_lower, col)
+                # Compute Levenshtein distance after preprocessing (removing 'name')
+                distance = Levenshtein.distance(input_col_processed, processed_columns_list[col])
 
-                # avoid swapping similar but distinct columns
+                # Avoid incorrect matches
                 is_conflicting = (
-                    (input_col_lower in col or col in input_col_lower)
-                    and ("id" in input_col_lower and "id" not in col or "id" not in input_col_lower and "id" in col) # adds extra protection for columns with id in the name
+                    (input_col.lower() in col.lower() or col.lower() in input_col.lower()) and
+                    ("id" in input_col.lower() and "id" not in col.lower() or "id" not in input_col.lower() and "id" in col.lower())
                 )
 
                 if distance < best_distance and not is_conflicting:
-                    best_match = columns_list[i]
+                    best_match = col
                     best_distance = distance
 
-        # only assign a match if it meets the threshold and does not overwrite meaningful differences
-        if best_match and best_distance <= 3:  # threshold for levenshtein distance. this is how many fixes are needed to match the strings
+        # Assign a match only if it meets the threshold and does not create conflicts
+        if best_match and best_distance <= 3:  # Allow small differences for typos or variations. Adjust as needed
             best_matches[input_col] = best_match
-            used_matches.add(best_match.lower())
+            used_matches.add(best_match)
         else:
-            best_matches[input_col] = input_col  # no suitable match found. retain original name
+            best_matches[input_col] = input_col  # No suitable match found, retain original name
 
     return best_matches
-
 
 def convert_date_columns(df):
     """Convert date related columns to datetime format"""
