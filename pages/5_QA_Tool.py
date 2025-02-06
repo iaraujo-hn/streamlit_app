@@ -6,15 +6,15 @@ import chardet
 import Levenshtein
 
 # ---------------------------------- Dictionaries ---------------------------------- #
-# Columns to be included in the group by selection
+# Columns to be included in the group by selection only
 default_groupby_columns = ['placement_id','campaign_id', "creative_id", 'site_id']
 
 # Columns to exclude from the group by selection
 excluded_groupby_columns = [
-    'impressions', 'clicks', 'Click', 'spend', 'sessions', 'page_views', 'revenue', 'conversions'
+    'impressions', 'Impressions','clicks', 'Clicks', 'link_click','spend', 'Spend','Cost','Media Cost','sessions', 'page_views', 'revenue', 'conversions'
 ]
 
-# Define common column mappings for automatic matching
+# Common column mappings for automatic matching
 column_mapping = {
     "site_dcm": "Site (CM360)",
     "Site ID (CM360)": "site_id_dcm",
@@ -39,25 +39,9 @@ def clean_id_columns(df):
                 df[col] = df[col].astype(str)
     return df
 
-# @st.cache_data
-# def read_file(file):
-#     """Read csv or excel file based on file extension and clean ID columns."""
-#     with st.spinner('Loading file...'):
-#         if file.name.endswith('.csv'):
-#             df = pd.read_csv(file)
-#         elif file.name.endswith('.xlsx'):
-#             df = pd.read_excel(file, engine='openpyxl')
-#         else:
-#             st.error("Unsupported file type. Please upload a CSV or Excel file.")
-#             return None
-        
-#         # Clean ID columns
-#         df = clean_id_columns(df)
-#         return df
-
 @st.cache_data
 def read_file(file):
-    """Read CSV or Excel file with automatic encoding detection and user-friendly error handling."""
+    """Read CSV or Excel file with automatic encoding detection and error handling, including skipping metadata rows."""
     with st.spinner('Loading file...'):
         df = None
         error_message = None
@@ -65,13 +49,30 @@ def read_file(file):
         try:
             if file.name.endswith('.csv'):
                 raw_bytes = file.read(10000)  # Read a portion of the file
-                detected_encoding = chardet.detect(raw_bytes)['encoding'] # Detect encoding for CSV files
-                file.seek(0)  # Reset file pointer after reading
+                detected_encoding = chardet.detect(raw_bytes)['encoding']  # Detect encoding
+                file.seek(0)  # Reset file pointer
+
+                # Try reading the file, with a fallback for skipping metadata rows
+                for skip_rows in range(11):  # Try skipping from 0 to 10 rows
+                    try:
+                        df = pd.read_csv(file, encoding=detected_encoding if detected_encoding else 'utf-8', skiprows=skip_rows)
+                        break  # Stop if successful
+                    except (pd.errors.ParserError, UnicodeDecodeError):
+                        file.seek(0)  # Reset file pointer before retrying
                 
-                df = pd.read_csv(file, encoding=detected_encoding if detected_encoding else 'utf-8') # Read csv using detected encoding
+                if df is None:
+                    raise pd.errors.ParserError("Failed to read file after skipping 10 rows.")
 
             elif file.name.endswith('.xlsx'):
-                df = pd.read_excel(file, engine='openpyxl')
+                for skip_rows in range(11):
+                    try:
+                        df = pd.read_excel(file, engine='openpyxl', skiprows=skip_rows)
+                        break
+                    except Exception:
+                        file.seek(0)
+                
+                if df is None:
+                    raise Exception("Failed to read Excel file after skipping 10 rows.")
 
             else:
                 st.error("❌ Unsupported file type. Please upload a **CSV or Excel file**.")
@@ -86,17 +87,16 @@ def read_file(file):
         except pd.errors.EmptyDataError:
             error_message = "⚠️ The file appears to be **empty**. Please verify its contents."
         except pd.errors.ParserError:
-            error_message = "⚠️ The file format may be **corrupted or incorrect**. Try saving it again as a new file."
+            error_message = "⚠️ The file format may be **corrupted or incorrect**, or it contains too many metadata rows. Try checking its structure."
         except Exception as e:
             error_message = f"⚠️ Unexpected error: {str(e)}"
         
         # If any error was detected, display it and troubleshooting tips
         if error_message:
             st.error(error_message)
-
             st.markdown("### How to Fix This:")
             st.markdown("""
-            - **Check if the file is empty:** Open it and confirm it contains data.
+            - **Check if the file contains metadata in the first few rows** and remove them manually.
             - **Ensure it's in CSV or Excel format:** Other file types (e.g., PDF, Word) are not supported.
             - **If you see character issues, save the file using UTF-8 encoding.**  
               - In Excel: Save As → Choose CSV (UTF-8)
@@ -109,54 +109,6 @@ def read_file(file):
         # Clean ID columns after successful load
         df = clean_id_columns(df)
         return df
-
-# def find_best_match(input_cols, columns_list):
-#     """Find the best match for each input column using Levenshtein distance with logic to avoid mismatches."""
-#     input_cols_lower = [col.lower() for col in input_cols]
-#     columns_list_lower = [col.lower() for col in columns_list]
-#     used_matches = set()
-#     best_matches = {}
-
-#     for input_col, input_col_lower in zip(input_cols, input_cols_lower):
-#         best_match = None
-#         best_distance = float('inf')
-
-#         # prioritize exact matches
-#         for i, col in enumerate(columns_list_lower):
-#             if col in used_matches:  # avoid duplications
-#                 continue
-
-#             if col == input_col_lower:  # exact match
-#                 best_match = columns_list[i]
-#                 best_distance = 0
-#                 break
-
-#         # apply levenshtein distance only if no exact match found
-#         if not best_match:
-#             for i, col in enumerate(columns_list_lower):
-#                 if col in used_matches:  # avoid duplications
-#                     continue
-
-#                 distance = Levenshtein.distance(input_col_lower, col)
-
-#                 # avoid swapping similar but distinct columns
-#                 is_conflicting = (
-#                     (input_col_lower in col or col in input_col_lower)
-#                     and ("id" in input_col_lower and "id" not in col or "id" not in input_col_lower and "id" in col) # adds extra protection for columns with id in the name
-#                 )
-
-#                 if distance < best_distance and not is_conflicting:
-#                     best_match = columns_list[i]
-#                     best_distance = distance
-
-#         # only assign a match if it meets the threshold and does not overwrite meaningful differences
-#         if best_match and best_distance <= 3:  # threshold for levenshtein distance. this is how many fixes are needed to match the strings
-#             best_matches[input_col] = best_match
-#             used_matches.add(best_match.lower())
-#         else:
-#             best_matches[input_col] = input_col  # no suitable match found. retain original name
-
-#     return best_matches
 
 def preprocess_column_for_matching(column):
     """
@@ -583,6 +535,17 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
         st.error(f"Found {num_discrepancies} rows with discrepancies larger than 0.5%, representing {discrepancy_percentage:.2f}% of the total grouped data.")
     else:
         st.success("✅ No discrepancies greater than 0.5% found.")
+
+    # Download button for results table
+    if not results.empty:
+        csv = results.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Results as CSV",
+            data=csv,
+            file_name="comparison_results.csv",
+            mime="text/csv",
+            key="download_results"
+        )
 
 def display_discrepancies():
     """Displays discrepancies independently from the comparison function."""
