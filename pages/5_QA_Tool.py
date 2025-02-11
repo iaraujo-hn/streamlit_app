@@ -41,27 +41,23 @@ def clean_id_columns(df):
 
 @st.cache_data
 def read_file(file):
-    """Read CSV or Excel file with automatic encoding detection and error handling, including skipping metadata rows."""
+    """Read CSV or Excel file with multiple encoding fallbacks and error handling."""
     with st.spinner('Loading file...'):
         df = None
         error_message = None
+        encodings_to_try = ["utf-8", "ISO-8859-1", "windows-1252", "latin-1"]  # List of encodings to try
 
         try:
             if file.name.endswith('.csv'):
-                raw_bytes = file.read(10000)  # Read a portion of the file
-                detected_encoding = chardet.detect(raw_bytes)['encoding']  # Detect encoding
-                file.seek(0)  # Reset file pointer
-
-                # Try reading the file, with a fallback for skipping metadata rows
-                for skip_rows in range(11):  # Try skipping from 0 to 10 rows
+                for encoding in encodings_to_try:
                     try:
-                        df = pd.read_csv(file, encoding=detected_encoding if detected_encoding else 'utf-8', skiprows=skip_rows)
+                        df = pd.read_csv(file, encoding=encoding, skiprows=0)  # Initial read attempt
                         break  # Stop if successful
-                    except (pd.errors.ParserError, UnicodeDecodeError):
+                    except (UnicodeDecodeError, pd.errors.ParserError):
                         file.seek(0)  # Reset file pointer before retrying
-                
+                        
                 if df is None:
-                    raise pd.errors.ParserError("Failed to read file after skipping 10 rows.")
+                    raise pd.errors.ParserError("Failed to read CSV file with all available encodings.")
 
             elif file.name.endswith('.xlsx'):
                 for skip_rows in range(11):
@@ -70,7 +66,7 @@ def read_file(file):
                         break
                     except Exception:
                         file.seek(0)
-                
+
                 if df is None:
                     raise Exception("Failed to read Excel file after skipping 10 rows.")
 
@@ -82,8 +78,6 @@ def read_file(file):
             if df.empty or df.columns.notna().sum() <= 1:
                 error_message = "⚠️ The file seems to be **empty or incorrectly formatted**. Please check that it contains valid data."
 
-        except UnicodeDecodeError:
-            error_message = "⚠️ There was an issue reading the file due to **invalid characters**. Try saving it again using UTF-8 encoding."
         except pd.errors.EmptyDataError:
             error_message = "⚠️ The file appears to be **empty**. Please verify its contents."
         except pd.errors.ParserError:
@@ -94,16 +88,6 @@ def read_file(file):
         # If any error was detected, display it and troubleshooting tips
         if error_message:
             st.error(error_message)
-            st.markdown("### How to Fix This:")
-            st.markdown("""
-            - **Check if the file contains metadata in the first few rows** and remove them manually.
-            - **Ensure it's in CSV or Excel format:** Other file types (e.g., PDF, Word) are not supported.
-            - **If you see character issues, save the file using UTF-8 encoding.**  
-              - In Excel: Save As → Choose CSV (UTF-8)
-              - In Notepad: File → Save As → Encoding: UTF-8
-            - **If it's an Excel file, try saving it again as a new Excel file:** This can fix formatting issues.
-            - **If the issue persists, try uploading a different version of the file.**
-            """)
             return None
         
         # Clean ID columns after successful load
