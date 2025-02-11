@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import t, norm
 
 # Function
 def sample_size_estimator(
@@ -82,15 +82,9 @@ st.set_page_config(page_title="Sample Size Estimator", layout="wide")
 
 st.title('Sample Size Estimator')
 
-st.markdown("""
-## 
-**Sample Size Estimator** is designed to help you plan A/B test with historical knowledge and maximize the chances of success. It provides:
-- Minimum sample sizes for your campaign to achieve statiscal sigfinicance. 
-- Estimates the budget required and the time it will take to run the test.
-            
-""")
+st.markdown("---")
 
-st.write("**Ideal Use Case:**  Known conversion lift from previous campaigns and plan to run new one.")
+st.write("This tool is designed to help you plan A/B tests by calculating the necessary sample sizes for both your control and test groups. It also estimates the budget required and the time it will take to run the test. Simply input your parameters and the tool will provide you with detailed results.\n\nThese results will include the sizes of your groups, the total budget, and the expected duration of your test. This way, you can ensure your tests are properly planned and budgeted.")
 
 st.sidebar.title('A/B Test Parameters')
 # Control group input
@@ -134,3 +128,8 @@ if st.sidebar.button("Calculate"):
     st.write("#### Results:")
     st.write(f"###### To achieve a {confidence_level} confidence level, you will need an estimated budget of {total_budget}. We recommend a total sample size of {total_sample_size}. The test is expected to take approximately {duration} days.")
     st.dataframe(styled_results_df)
+
+st.sidebar.markdown("---")
+st.sidebar.image("images/hn-logo.png", output_format="PNG")
+
+# streamlit run 1_Home.py --server.enableXsrfProtection false

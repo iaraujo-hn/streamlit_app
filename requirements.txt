@@ -7,4 +7,3 @@ spacy
 Levenshtein
 spacy
 openpyxl
-chardet
