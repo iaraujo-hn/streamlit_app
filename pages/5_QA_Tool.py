@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import re  # regex
-import chardet
 import Levenshtein
 
 # ---------------------------------- Dictionaries ---------------------------------- #
@@ -41,68 +40,53 @@ def clean_id_columns(df):
 
 @st.cache_data
 def read_file(file):
-    """Read CSV or Excel file with multiple encoding fallbacks and error handling."""
-    with st.spinner('Loading file...'):
-        df = None
-        error_message = None
-        encodings_to_try = ["utf-8", "ISO-8859-1", "windows-1252", "latin-1"]  # List of encodings to try
+    """Read CSV or Excel file in a simple way first, then handle errors only if needed."""
+    try:
+        if file.name.endswith('.csv'):
+            return pd.read_csv(file), None
+        elif file.name.endswith('.xlsx'):
+            return pd.read_excel(file), None
+        else:
+            return None, "❌ Unsupported file type. Please upload a **CSV or Excel file**."
+    except Exception:
+        return robust_read_file(file)
 
-        try:
-            if file.name.endswith('.csv'):
-                for encoding in encodings_to_try:
-                    try:
-                        df = pd.read_csv(file, encoding=encoding, skiprows=0)  # Initial read attempt
-                        break  # Stop if successful
-                    except (UnicodeDecodeError, pd.errors.ParserError):
-                        file.seek(0)  # Reset file pointer before retrying
-                        
-                if df is None:
-                    raise pd.errors.ParserError("Failed to read CSV file with all available encodings.")
 
-            elif file.name.endswith('.xlsx'):
-                for skip_rows in range(11):
-                    try:
-                        df = pd.read_excel(file, engine='openpyxl', skiprows=skip_rows)
-                        break
-                    except Exception:
-                        file.seek(0)
+def robust_read_file(file):
+    """Attempts to read the file with multiple encodings and parsing fixes if the initial read fails."""
+    encodings_to_try = ["utf-8", "ISO-8859-1", "windows-1252", "latin-1"]
+    df, error_message = None, None
 
-                if df is None:
-                    raise Exception("Failed to read Excel file after skipping 10 rows.")
+    if file.name.endswith('.csv'):
+        for encoding in encodings_to_try:
+            try:
+                df = pd.read_csv(file, encoding=encoding, skiprows=0)
+                break
+            except (UnicodeDecodeError, pd.errors.ParserError):
+                file.seek(0)  # Reset file pointer before retrying
 
-            else:
-                st.error("❌ Unsupported file type. Please upload a **CSV or Excel file**.")
-                return None
+        if df is None:
+            error_message = "⚠️ The file format may be **corrupted or incorrectly encoded**. Try saving it as a new CSV with UTF-8 encoding."
 
-            # Validate if the dataframe has proper headers and data
-            if df.empty or df.columns.notna().sum() <= 1:
-                error_message = "⚠️ The file seems to be **empty or incorrectly formatted**. Please check that it contains valid data."
+    elif file.name.endswith('.xlsx'):
+        for skip_rows in range(11):
+            try:
+                df = pd.read_excel(file, engine='openpyxl', skiprows=skip_rows)
+                break
+            except Exception:
+                file.seek(0)
 
-        except pd.errors.EmptyDataError:
-            error_message = "⚠️ The file appears to be **empty**. Please verify its contents."
-        except pd.errors.ParserError:
-            error_message = "⚠️ The file format may be **corrupted or incorrect**, or it contains too many metadata rows. Try checking its structure."
-        except Exception as e:
-            error_message = f"⚠️ Unexpected error: {str(e)}"
-        
-        # If any error was detected, display it and troubleshooting tips
-        if error_message:
-            st.error(error_message)
-            return None
-        
-        # Clean ID columns after successful load
-        df = clean_id_columns(df)
-        return df
+        if df is None:
+            error_message = "⚠️ The file format may be **corrupted or contain excessive metadata rows**. Try saving it as a new Excel file."
 
-def preprocess_column_for_matching(column):
-    """
-    Preprocess a column name by removing 'name' and converting to lowercase.
-    Used to test if removing 'name' results in a match.
-    """
-    return re.sub(r'\bname\b', '', column.lower()).strip()
+    if df is None and error_message:
+        return None, error_message
 
-import re
-import Levenshtein
+    # Validate if the file contains actual data
+    if df.empty or df.columns.notna().sum() <= 1:
+        return None, "⚠️ The file seems to be **empty or incorrectly formatted**. Please check that it contains valid data."
+
+    return df, None
 
 def preprocess_column_for_matching(column):
     """
@@ -200,38 +184,42 @@ def check_and_convert_to_numeric(df, column_name):
         return df[column_name]
 
 # ---------------------------------- UI Components ---------------------------------- #
-
 def display_uploaded_data(file_1, file_2):
-    """Upload and display data from two files with toggling and tabs."""
-    df1 = read_file(file_1)
-    df2 = read_file(file_2)
+    """Upload and display data from two files, ensuring error messages appear only once."""
+    df1, error1 = read_file(file_1)
+    df2, error2 = read_file(file_2)
+
+    # If any error exists, print it **only once** instead of twice
+    if error1 or error2:
+        st.error("❌ There was an issue reading the uploaded files. Please check the following:\n\n"
+                 "- Ensure the file is **not empty** and contains valid data.\n"
+                 "- Try **saving the file again** as a new CSV or Excel file.\n"
+                 "- If using CSV, make sure it is **UTF-8 encoded**.\n"
+                 "- If using Excel, remove unnecessary metadata rows before uploading.")
 
     if df1 is not None and df2 is not None:
-        # Process the data
-        df1 = convert_date_columns(df1)
-        df2 = convert_date_columns(df2)
+        df1 = clean_id_columns(df1)
+        df2 = clean_id_columns(df2)
 
-        # Create session state variables for toggling
+        # Toggle to show/hide data preview
         if "show_data" not in st.session_state:
             st.session_state.show_data = False
 
-        # Toggle button for showing or hiding data
         if st.button("View Data"):
             st.session_state.show_data = not st.session_state.show_data
 
-        # Conditionally display the data
         if st.session_state.show_data:
             tab1, tab2 = st.tabs(["Main File", "File 2"])
-
             with tab1:
                 st.write(df1.head(10))
-                st.write('*Displaying the first 10 rows only.')
+                st.write('*Displaying the first 10 rows only.*')
 
             with tab2:
                 st.write(df2.head(10))
-                st.write('*Displaying the first 10 rows only.')
+                st.write('*Displaying the first 10 rows only.*')
 
         return df1, df2
+
     return None, None
 
 def auto_match_columns(df1, df2, column_mapping):
@@ -268,120 +256,6 @@ def auto_match_columns(df1, df2, column_mapping):
     return df1, df2, column_replacements
 
 # ---------------------------------- UI Components ---------------------------------- #
-
-# def manual_edit_columns(df1, df2, column_replacements_auto):
-#     """
-#     Allow manual editing of column names in File 2 to match main file.
-#     Display column names side by side, placing matching columns at the top.
-#     Ensure main file remains unchanged.
-#     """
-#     # Identify matching and non-matching columns
-#     matching_columns = [col for col in df1.columns if col in df2.columns]
-#     non_matching_columns_1 = [col for col in df1.columns if col not in df2.columns]
-#     non_matching_columns_2 = [col for col in df2.columns if col not in df1.columns]
-
-#     # Order the dataframe: matches first, then non-matches in their original order
-#     ordered_columns_1 = matching_columns + non_matching_columns_1
-#     ordered_columns_2 = matching_columns + non_matching_columns_2
-
-#     # Create dataframe for UI display
-#     max_len = max(len(ordered_columns_1), len(ordered_columns_2))
-#     columns_df = pd.DataFrame({
-#         "Main File": ordered_columns_1 + [""] * (max_len - len(ordered_columns_1)),
-#         "File 2": ordered_columns_2 + [""] * (max_len - len(ordered_columns_2))
-#     })
-
-#     # Function to highlight matching columns
-#     def highlight_matching_cols(val):
-#         if val in matching_columns:
-#             return "background-color: #c6f5c6; font-weight: bold;"  # Green highlight
-#         return ""
-
-#     # Toggle to show/hide the table
-#     show_columns_table = st.checkbox("Show column names")
-
-#     if show_columns_table:
-#         # Column name styling
-#         st.markdown(
-#             """
-#             <style>
-#             div[data-testid="stTable"] {
-#                 width: 100% !important;
-#             }
-#             table {
-#                 width: 100% !important;
-#                 table-layout: auto !important;
-#             }
-#             thead th {
-#                 text-align: left !important;
-#                 font-weight: bold;
-#                 background-color: #f0f2f6;
-#                 white-space: nowrap;
-#             }
-#             tbody td {
-#                 padding: 12px;
-#                 white-space: normal !important;
-#                 word-wrap: break-word !important;
-#                 max-width: 600px !important;
-#             }
-#             </style>
-#             """,
-#             unsafe_allow_html=True
-#         )
-
-#         styled_df = (
-#             columns_df.style
-#             .applymap(highlight_matching_cols)
-#             .set_properties(**{"max-width": "600px", "white-space": "normal"})
-#         )
-
-#         st.write("#### Column Names")
-#         st.write("Columns in green match between Main File and File 2.")
-        
-#         if column_replacements_auto:
-#             renamed_columns_tooltip = "\n".join([f"{old} → {new}" for old, new in column_replacements_auto.items()])
-#             tooltip_text = f"""
-#             <div style="border-bottom: 1px dotted; display: inline; cursor: help;" title="{renamed_columns_tooltip}">
-#             ℹ️ Automatically Renamed Columns (hover to view)
-#             </div>
-#             """
-            
-#         st.markdown(tooltip_text, unsafe_allow_html=True)
-
-#         st.table(styled_df)
-
-#     # Track manual renaming
-#     column_replacements = {}
-
-#     st.write("##### Select Columns to Rename in File 2")
-#     columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
-
-#     if columns_to_rename_file2:
-#         st.write("##### Rename Selected Columns in File 2 to Match Main File")
-
-#         for col2_name in columns_to_rename_file2:
-#             col1, _ = st.columns([2, 3])
-
-#             with col1:
-#                 new_col_name2 = st.selectbox(
-#                     f"Rename '{col2_name}' (File 2):",
-#                     [""] + list(df1.columns),
-#                     key=f"rename_file2_{col2_name}"
-#                 )
-
-#                 if new_col_name2 and col2_name != new_col_name2:
-#                     column_replacements[col2_name] = new_col_name2
-#                     df2.rename(columns={col2_name: new_col_name2}, inplace=True)
-
-#     final_matching = sum(1 for col in df2.columns if col in df1.columns)
-
-#     if column_replacements:
-#         for old_col, new_col in column_replacements.items():
-#             st.write(f"**'{old_col}'** renamed to **'{new_col}'**")
-#         st.success(f"✅ {final_matching} out of {len(df1.columns)} columns in File 2 now match Main File.")
-
-#     return df1, df2, column_replacements
-
 def manual_edit_columns(df1, df2, column_replacements_auto):
     """
     Allow manual editing of column names in File 2 to match main file.
@@ -566,21 +440,6 @@ def ensure_numeric_and_clean(df, numeric_columns):
             df[col] = pd.to_numeric(df[col], errors="coerce")  # Convert to numeric (float or int)
     return df
 
-
-# def ensure_numeric_and_clean(df, numeric_columns):
-#     """
-#     Ensure that specified columns in the DataFrame are numeric (int or float)
-#     Skip columns in default groupby columns to prevent them from being converted
-#     """
-#     for col in numeric_columns:
-#         # Skip columns in default groupby columns
-#         if col in default_groupby_columns:
-#             continue
-#         if col in df.columns:
-#             df[col] = clean_and_convert_to_numeric(df[col])
-#     return df
-
-
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframes and compare metrics, ensuring 0,0 pairs are included in the comparison."""
     for col in default_groupby_columns:
@@ -594,14 +453,9 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
             df1[col] = df1[col].astype(str)
             df2[col] = df2[col].astype(str)
 
-    # df1 = ensure_numeric_and_clean(df1, [col for col in selected_metrics if col not in default_groupby_columns])
-    # df2 = ensure_numeric_and_clean(df2, [col for col in selected_metrics if col not in default_groupby_columns])
-
     # Ensure selected metric columns exist in the DataFrame before converting
     df1[selected_metrics] = df1[selected_metrics].apply(pd.to_numeric, errors="coerce")
     df2[selected_metrics] = df2[selected_metrics].apply(pd.to_numeric, errors="coerce")
-
-
 
     df1.columns = [f"{col} - Main File" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
