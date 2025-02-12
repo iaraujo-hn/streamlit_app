@@ -269,6 +269,119 @@ def auto_match_columns(df1, df2, column_mapping):
 
 # ---------------------------------- UI Components ---------------------------------- #
 
+# def manual_edit_columns(df1, df2, column_replacements_auto):
+#     """
+#     Allow manual editing of column names in File 2 to match main file.
+#     Display column names side by side, placing matching columns at the top.
+#     Ensure main file remains unchanged.
+#     """
+#     # Identify matching and non-matching columns
+#     matching_columns = [col for col in df1.columns if col in df2.columns]
+#     non_matching_columns_1 = [col for col in df1.columns if col not in df2.columns]
+#     non_matching_columns_2 = [col for col in df2.columns if col not in df1.columns]
+
+#     # Order the dataframe: matches first, then non-matches in their original order
+#     ordered_columns_1 = matching_columns + non_matching_columns_1
+#     ordered_columns_2 = matching_columns + non_matching_columns_2
+
+#     # Create dataframe for UI display
+#     max_len = max(len(ordered_columns_1), len(ordered_columns_2))
+#     columns_df = pd.DataFrame({
+#         "Main File": ordered_columns_1 + [""] * (max_len - len(ordered_columns_1)),
+#         "File 2": ordered_columns_2 + [""] * (max_len - len(ordered_columns_2))
+#     })
+
+#     # Function to highlight matching columns
+#     def highlight_matching_cols(val):
+#         if val in matching_columns:
+#             return "background-color: #c6f5c6; font-weight: bold;"  # Green highlight
+#         return ""
+
+#     # Toggle to show/hide the table
+#     show_columns_table = st.checkbox("Show column names")
+
+#     if show_columns_table:
+#         # Column name styling
+#         st.markdown(
+#             """
+#             <style>
+#             div[data-testid="stTable"] {
+#                 width: 100% !important;
+#             }
+#             table {
+#                 width: 100% !important;
+#                 table-layout: auto !important;
+#             }
+#             thead th {
+#                 text-align: left !important;
+#                 font-weight: bold;
+#                 background-color: #f0f2f6;
+#                 white-space: nowrap;
+#             }
+#             tbody td {
+#                 padding: 12px;
+#                 white-space: normal !important;
+#                 word-wrap: break-word !important;
+#                 max-width: 600px !important;
+#             }
+#             </style>
+#             """,
+#             unsafe_allow_html=True
+#         )
+
+#         styled_df = (
+#             columns_df.style
+#             .applymap(highlight_matching_cols)
+#             .set_properties(**{"max-width": "600px", "white-space": "normal"})
+#         )
+
+#         st.write("#### Column Names")
+#         st.write("Columns in green match between Main File and File 2.")
+        
+#         if column_replacements_auto:
+#             renamed_columns_tooltip = "\n".join([f"{old} → {new}" for old, new in column_replacements_auto.items()])
+#             tooltip_text = f"""
+#             <div style="border-bottom: 1px dotted; display: inline; cursor: help;" title="{renamed_columns_tooltip}">
+#             ℹ️ Automatically Renamed Columns (hover to view)
+#             </div>
+#             """
+            
+#         st.markdown(tooltip_text, unsafe_allow_html=True)
+
+#         st.table(styled_df)
+
+#     # Track manual renaming
+#     column_replacements = {}
+
+#     st.write("##### Select Columns to Rename in File 2")
+#     columns_to_rename_file2 = st.multiselect("Select columns from File 2:", df2.columns)
+
+#     if columns_to_rename_file2:
+#         st.write("##### Rename Selected Columns in File 2 to Match Main File")
+
+#         for col2_name in columns_to_rename_file2:
+#             col1, _ = st.columns([2, 3])
+
+#             with col1:
+#                 new_col_name2 = st.selectbox(
+#                     f"Rename '{col2_name}' (File 2):",
+#                     [""] + list(df1.columns),
+#                     key=f"rename_file2_{col2_name}"
+#                 )
+
+#                 if new_col_name2 and col2_name != new_col_name2:
+#                     column_replacements[col2_name] = new_col_name2
+#                     df2.rename(columns={col2_name: new_col_name2}, inplace=True)
+
+#     final_matching = sum(1 for col in df2.columns if col in df1.columns)
+
+#     if column_replacements:
+#         for old_col, new_col in column_replacements.items():
+#             st.write(f"**'{old_col}'** renamed to **'{new_col}'**")
+#         st.success(f"✅ {final_matching} out of {len(df1.columns)} columns in File 2 now match Main File.")
+
+#     return df1, df2, column_replacements
+
 def manual_edit_columns(df1, df2, column_replacements_auto):
     """
     Allow manual editing of column names in File 2 to match main file.
@@ -337,7 +450,10 @@ def manual_edit_columns(df1, df2, column_replacements_auto):
 
         st.write("#### Column Names")
         st.write("Columns in green match between Main File and File 2.")
-        
+
+        # Initialize tooltip_text to avoid UnboundLocalError
+        tooltip_text = ""
+
         if column_replacements_auto:
             renamed_columns_tooltip = "\n".join([f"{old} → {new}" for old, new in column_replacements_auto.items()])
             tooltip_text = f"""
@@ -345,7 +461,10 @@ def manual_edit_columns(df1, df2, column_replacements_auto):
             ℹ️ Automatically Renamed Columns (hover to view)
             </div>
             """
-        st.markdown(tooltip_text, unsafe_allow_html=True)
+
+        # Only display tooltip if there's content
+        if tooltip_text:
+            st.markdown(tooltip_text, unsafe_allow_html=True)
 
         st.table(styled_df)
 
@@ -380,6 +499,7 @@ def manual_edit_columns(df1, df2, column_replacements_auto):
         st.success(f"✅ {final_matching} out of {len(df1.columns)} columns in File 2 now match Main File.")
 
     return df1, df2, column_replacements
+
 
 def prepare_group_and_metric_options(df1, df2, default_groupby_columns, excluded_groupby_columns):
     """
@@ -429,19 +549,37 @@ def clean_and_convert_to_numeric(series):
     # Convert to numeric, coercing errors
     return pd.to_numeric(cleaned_series, errors="coerce")
 
-
 def ensure_numeric_and_clean(df, numeric_columns):
     """
-    Ensure that specified columns in the DataFrame are numeric (int or float)
-    Skip columns in default groupby columns to prevent them from being converted
+    Ensure that specified columns in the DataFrame are numeric (int or float).
+    Handles cases with currency symbols, commas, and other non-numeric characters.
+    Skips columns in default_groupby_columns to prevent conversion issues.
     """
     for col in numeric_columns:
-        # Skip columns in default groupby columns
-        if col in default_groupby_columns:
-            continue
-        if col in df.columns:
-            df[col] = clean_and_convert_to_numeric(df[col])
+        if col in df.columns and col not in default_groupby_columns:
+            df[col] = (
+                df[col]
+                .astype(str)  # Convert everything to string first
+                .str.replace(r"[^0-9.\-]", "", regex=True)  # Remove non-numeric characters except period & minus
+                .str.replace(r"\.+", ".", regex=True)  # Handle multiple periods, keeping only one
+            )
+            df[col] = pd.to_numeric(df[col], errors="coerce")  # Convert to numeric (float or int)
     return df
+
+
+# def ensure_numeric_and_clean(df, numeric_columns):
+#     """
+#     Ensure that specified columns in the DataFrame are numeric (int or float)
+#     Skip columns in default groupby columns to prevent them from being converted
+#     """
+#     for col in numeric_columns:
+#         # Skip columns in default groupby columns
+#         if col in default_groupby_columns:
+#             continue
+#         if col in df.columns:
+#             df[col] = clean_and_convert_to_numeric(df[col])
+#     return df
+
 
 def group_and_compare(df1, df2, groupby_columns, selected_metrics):
     """Group dataframes and compare metrics, ensuring 0,0 pairs are included in the comparison."""
@@ -456,8 +594,14 @@ def group_and_compare(df1, df2, groupby_columns, selected_metrics):
             df1[col] = df1[col].astype(str)
             df2[col] = df2[col].astype(str)
 
-    df1 = ensure_numeric_and_clean(df1, [col for col in selected_metrics if col not in default_groupby_columns])
-    df2 = ensure_numeric_and_clean(df2, [col for col in selected_metrics if col not in default_groupby_columns])
+    # df1 = ensure_numeric_and_clean(df1, [col for col in selected_metrics if col not in default_groupby_columns])
+    # df2 = ensure_numeric_and_clean(df2, [col for col in selected_metrics if col not in default_groupby_columns])
+
+    # Ensure selected metric columns exist in the DataFrame before converting
+    df1[selected_metrics] = df1[selected_metrics].apply(pd.to_numeric, errors="coerce")
+    df2[selected_metrics] = df2[selected_metrics].apply(pd.to_numeric, errors="coerce")
+
+
 
     df1.columns = [f"{col} - Main File" if col not in groupby_columns else col for col in df1.columns]
     df2.columns = [f"{col} - File 2" if col not in groupby_columns else col for col in df2.columns]
